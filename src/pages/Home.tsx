@@ -22,12 +22,12 @@ export default function Home() {
 
   return (
     <div className="grid gap-4">
-      {/* <div className="rounded-xl2 border border-border bg-card/60 p-6 shadow-soft backdrop-blur">
+      <div className="rounded-xl2 border border-border bg-card/60 p-6 shadow-soft backdrop-blur">
         <h2 className="text-lg font-semibold">Accueil</h2>
         <p className="mt-2 text-sm text-muted">
           
         </p>
-      </div> */}
+      </div>
       <AvailabilityGrid meUsername={username} />
     </div>
   );
