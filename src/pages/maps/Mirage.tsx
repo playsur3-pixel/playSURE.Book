@@ -18,7 +18,7 @@ export default function Mirage() {
       </div>
 
       {/* #Stuff */}
-      <CollapsibleCard title="#Stuff" subtitle="Vidéos + instructions" defaultOpen>
+      <CollapsibleCard title="#Stuff" subtitle="Vidéos + instructions">
         <div className="grid gap-3">
           {mirageStuff.map((it) => (
             <CollapsibleCard

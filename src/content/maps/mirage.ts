@@ -14,7 +14,7 @@ export type StratItem = {
 export const mirageStuff: StuffItem[] = [
   {
     title: "Flash Rush B",
-    embedSrc: "https://www.youtube.com/watch?v=pzOoCRe3vgk",
+    embedSrc: "https://www.youtube.com/embed/pzOoCRe3vgk?si=DQDz6OtTWxNbju0e",
     instructions: [
       "Smoke 1 : ...",
       "Smoke 2 : ...",
