@@ -20,19 +20,31 @@ export function Topbar({ username, onLogout }: { username: string; onLogout: () 
         </div>
 
         <nav className="hidden items-center gap-1 md:flex">
+          <NavLink
+            to="/"
+            end
+            className={({ isActive }) =>
+              `rounded-xl px-3 py-1.5 text-sm transition
+              ${isActive ? "bg-white/10 text-white" : "text-muted hover:text-white hover:bg-white/5"}`
+            }
+          >
+            Accueil
+          </NavLink>
+
           {maps.map((m) => (
             <NavLink
               key={m.path}
               to={m.path}
               className={({ isActive }) =>
                 `rounded-xl px-3 py-1.5 text-sm transition
-                 ${isActive ? "bg-white/10 text-white" : "text-muted hover:text-white hover:bg-white/5"}`
+                ${isActive ? "bg-white/10 text-white" : "text-muted hover:text-white hover:bg-white/5"}`
               }
             >
               {m.name}
             </NavLink>
           ))}
         </nav>
+
 
         <div className="flex items-center gap-3">
           <span className="hidden text-sm text-muted sm:block">@{username}</span>
