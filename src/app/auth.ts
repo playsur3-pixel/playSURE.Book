@@ -12,6 +12,7 @@ export async function apiLogin(username: string, password: string) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ username, password }),
   });
+
   if (!r.ok) {
     const j = await r.json().catch(() => ({}));
     throw new Error(j.error || "Login failed");
@@ -20,10 +21,18 @@ export async function apiLogin(username: string, password: string) {
 }
 
 export async function apiLogout() {
-  await fetch("/.netlify/functions/auth-logout", { method: "POST", credentials: "include" });
+  await fetch("/.netlify/functions/auth-logout", {
+    method: "POST",
+    credentials: "include",
+  });
 }
 
-export type AvailabilitySlot = { a: string[]; u: string[] };
+/* =========================
+   Availability (dispo only)
+   ========================= */
+
+export type AvailabilitySlot = { a: string[] };
+
 export type AvailabilityData = {
   version: 1;
   updatedAt: string;
@@ -36,13 +45,14 @@ export async function apiAvailabilityGet(): Promise<AvailabilityData & { ok: boo
   return r.json();
 }
 
-export async function apiAvailabilitySet(slotKey: string, state: "available" | "unavailable" | "clear") {
+export async function apiAvailabilitySet(slotKey: string, state: "available" | "clear") {
   const r = await fetch("/.netlify/functions/availability-set", {
     method: "POST",
     credentials: "include",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ slotKey, state }),
   });
+
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || "availability-set failed");
   return j as { ok: boolean; slotKey: string; slot: AvailabilitySlot };
