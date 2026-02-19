@@ -25,9 +25,10 @@ export default function Home() {
       <div className="rounded-xl2 border border-border bg-card/60 p-6 shadow-soft backdrop-blur">
         <h2 className="text-lg font-semibold">Accueil</h2>
         <p className="mt-2 text-sm text-muted">
-          
+          Planning de disponibilités (17h → 00h) sur 4 semaines.
         </p>
       </div>
+
       <AvailabilityGrid meUsername={username} />
     </div>
   );
