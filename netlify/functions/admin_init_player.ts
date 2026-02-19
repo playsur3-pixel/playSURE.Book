@@ -1,5 +1,5 @@
 import type { Handler } from "@netlify/functions";
-import { getStore } from "@netlify/blobs";
+import { connectLambda, getStore } from "@netlify/blobs";
 import bcrypt from "bcryptjs";
 import { json } from "./_utils";
 
@@ -14,6 +14,9 @@ import { json } from "./_utils";
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
 
 export const handler: Handler = async (event) => {
+  // Ensure Netlify Blobs environment is configured in Lambda compatibility mode
+  connectLambda(event as any);
+
   try {
     if (event.httpMethod !== "POST") return json(405, { error: "Method Not Allowed" });
 

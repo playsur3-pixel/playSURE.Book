@@ -1,5 +1,5 @@
 import type { Handler } from "@netlify/functions";
-import { getStore } from "@netlify/blobs";
+import { connectLambda, getStore } from "@netlify/blobs";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { json } from "./_utils";
@@ -13,6 +13,9 @@ function makeCookie(token: string) {
 }
 
 export const handler: Handler = async (event) => {
+  // Ensure Netlify Blobs environment is configured in Lambda compatibility mode
+  connectLambda(event as any);
+
   try {
     if (event.httpMethod !== "POST") return json(405, { error: "Method Not Allowed" });
     const body = event.body ? JSON.parse(event.body) : null;
