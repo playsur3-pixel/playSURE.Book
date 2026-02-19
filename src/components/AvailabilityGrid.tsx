@@ -182,10 +182,17 @@ export default function AvailabilityGrid({ username }: { username: string }) {
   return (
     <div className="grid gap-4">
       <div className="flex items-center justify-between">
-        <div>
+        <div className="rounded-xl2 border border-border bg-card/60 p-6 shadow-soft backdrop-blur">
+            <h2 className="text-lg font-semibold">Accueil</h2>
+                <p className="mt-2 text-sm text-muted">
+                    Planning de disponibilités (17h → 23h) sur 4 semaines.
+                </p>
+        </div>
+
+        {/* <div>
           <div className="text-sm font-semibold">Planning de disponibilités</div>
           <div className="text-xs text-white/60">17h → 23h • clic = dispo / retirer dispo</div>
-        </div>
+        </div> */}
         {view.updatedAt && (
           <div className="text-[11px] text-white/50">maj: {new Date(view.updatedAt).toLocaleString("fr-FR")}</div>
         )}
