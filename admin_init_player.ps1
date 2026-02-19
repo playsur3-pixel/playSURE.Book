@@ -19,8 +19,8 @@ $site = "https://playsure-book.netlify.app"
 $uri = "$site/.netlify/functions/admin_init_player"
 
 # 4) User à créer
-$pseudo   = "playSURE"
-$password = "romainlg"
+$pseudo   = "Zeutoria"
+$password = "quelencule"
 
 $body = @{
   pseudo   = $pseudo

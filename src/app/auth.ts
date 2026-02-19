@@ -40,7 +40,7 @@ export type AvailabilityData = {
 };
 
 export async function apiAvailabilityGet(): Promise<AvailabilityData & { ok: boolean }> {
-  const r = await fetch("/.netlify/functions/availability-get", { credentials: "include" });
+  const r = await fetch("/.netlify/functions/availability-get", { credentials: "include",cache: "no-store", });
   if (!r.ok) throw new Error("availability-get failed");
   return r.json();
 }
@@ -49,6 +49,7 @@ export async function apiAvailabilitySet(slotKey: string, state: "available" | "
   const r = await fetch("/.netlify/functions/availability-set", {
     method: "POST",
     credentials: "include",
+    cache: "no-store",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ slotKey, state }),
   });
