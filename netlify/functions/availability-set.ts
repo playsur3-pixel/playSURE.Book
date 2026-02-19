@@ -6,7 +6,7 @@ import { json } from "./_utils";
 const COOKIE_NAME = process.env.AUTH_COOKIE_NAME || "playsure_token";
 const JWT_SECRET = process.env.AUTH_JWT_SECRET || "dev-secret";
 
-const STORE_NAME = process.env.AVAILABILITY_STORE || "playsure-book";
+const STORE_NAME = process.env.AVAILABILITY_STORE || "playsure-schedule";
 const KEY = "availability.json";
 
 // 17->23 => slots start hours: 17..22 (dernier = 22-23)
