@@ -22,7 +22,7 @@ export function Topbar({ username, onLogout }: { username: string; onLogout: () 
         <nav className="hidden items-center gap-1 md:flex">
           <NavLink
             to="/"
-            end
+            // end
             className={({ isActive }) =>
               `rounded-xl px-3 py-1.5 text-sm transition
               ${isActive ? "bg-white/10 text-white" : "text-muted hover:text-white hover:bg-white/5"}`

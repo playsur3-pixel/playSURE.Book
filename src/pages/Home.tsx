@@ -29,7 +29,9 @@ export default function Home() {
         </p>
       </div>
 
-      <AvailabilityGrid username={username} />
+      <div className="rounded-xl2 border border-border bg-card/60 p-6">TEST HOME OK</div>
+
+      {/* <AvailabilityGrid username={username} /> */}
     </div>
   );
 }
