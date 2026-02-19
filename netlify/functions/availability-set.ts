@@ -1,89 +1,166 @@
 import type { Handler } from "@netlify/functions";
 import { connectLambda, getStore } from "@netlify/blobs";
 import jwt from "jsonwebtoken";
-import { getCookie, json } from "./_utils";
+import { json } from "./_utils";
 
-type Slot = { a: string[] };
-type Data = { version: 1; updatedAt: string; slots: Record<string, Slot> };
-
-const KEY = "availability.json";
 const COOKIE_NAME = process.env.AUTH_COOKIE_NAME || "playsure_token";
 const JWT_SECRET = process.env.AUTH_JWT_SECRET || "dev-secret";
 
-type State = "available" | "clear";
+const STORE_NAME = process.env.AVAILABILITY_STORE || "playsure-book";
+const KEY = "availability.json";
 
-function pad(n: number) {
-  return String(n).padStart(2, "0");
+// 17->23 => slots start hours: 17..22 (dernier = 22-23)
+const MIN_HOUR = 17;
+const MAX_HOUR = 22;
+
+type AvailabilitySlot = { a: string[] };
+type AvailabilityData = {
+  version: 1;
+  updatedAt: string;
+  slots: Record<string, AvailabilitySlot>;
+};
+
+function parseCookies(cookieHeader: string | undefined) {
+  const out: Record<string, string> = {};
+  if (!cookieHeader) return out;
+  cookieHeader.split(";").forEach((part) => {
+    const [k, ...rest] = part.trim().split("=");
+    if (!k) return;
+    out[k] = decodeURIComponent(rest.join("=") || "");
+  });
+  return out;
 }
 
-function isValidSlotKey(slotKey: string) {
-  const m = /^(\d{4}-\d{2}-\d{2})\|(\d{2})$/.exec(slotKey);
+function getUsernameFromAuth(event: any): string | null {
+  const cookieHeader = event.headers?.cookie || event.headers?.Cookie;
+  const cookies = parseCookies(cookieHeader);
+  const token = cookies[COOKIE_NAME];
+  if (!token) return null;
+
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as any;
+    const sub = payload?.sub;
+    return typeof sub === "string" && sub.trim() ? sub.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+function defaultData(): AvailabilityData {
+  return { version: 1, updatedAt: new Date().toISOString(), slots: {} };
+}
+
+function isValidSlotKey(slotKey: string): boolean {
+  const m = /^(\d{4}-\d{2}-\d{2})\|(\d{1,2})$/.exec(slotKey);
   if (!m) return false;
+
+  const datePart = m[1];
   const hour = Number(m[2]);
-  // ✅ 17..22 seulement (22 => 22-23)
-  return hour >= 17 && hour <= 22;
+  if (!Number.isInteger(hour) || hour < MIN_HOUR || hour > MAX_HOUR) return false;
+
+  // Validation date (simple + stable)
+  const d = new Date(`${datePart}T12:00:00.000Z`);
+  if (Number.isNaN(d.getTime())) return false;
+  return d.toISOString().slice(0, 10) === datePart;
+}
+
+function cleanSlots(slots: Record<string, AvailabilitySlot>) {
+  const out: Record<string, AvailabilitySlot> = {};
+  for (const [k, v] of Object.entries(slots || {})) {
+    if (!isValidSlotKey(k)) continue;
+    const a = Array.isArray(v?.a) ? v.a.filter((x) => typeof x === "string" && x.trim()) : [];
+    const uniq = Array.from(new Set(a.map((x) => x.trim())));
+    if (uniq.length === 0) continue;
+    out[k] = { a: uniq.sort((aa, bb) => aa.localeCompare(bb, "fr")) };
+  }
+  return out;
+}
+
+function isPreconditionConflict(err: any) {
+  // 412 = Precondition Failed (etag mismatch / onlyIfMatch / onlyIfNew)
+  const status = err?.status ?? err?.statusCode ?? err?.response?.status;
+  if (status === 412) return true;
+
+  const msg = String(err?.message || "");
+  const name = String(err?.name || "");
+  return (
+    name.toLowerCase().includes("precondition") ||
+    msg.toLowerCase().includes("precondition") ||
+    msg.toLowerCase().includes("onlyifmatch") ||
+    msg.toLowerCase().includes("etag")
+  );
 }
 
 export const handler: Handler = async (event) => {
+  // ✅ obligatoire pour Blobs en lambda mode
   connectLambda(event as any);
 
   try {
     if (event.httpMethod !== "POST") return json(405, { error: "Method Not Allowed" });
 
-    const token = getCookie(event.headers.cookie, COOKIE_NAME);
-    if (!token) return json(401, { error: "Not authenticated" });
-
-    let username = "";
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET) as any;
-      username = String(decoded?.sub || "");
-    } catch {
-      return json(401, { error: "Invalid token" });
-    }
-    if (!username) return json(401, { error: "Invalid token payload" });
+    const username = getUsernameFromAuth(event);
+    if (!username) return json(401, { error: "Unauthorized" });
 
     const body = event.body ? JSON.parse(event.body) : null;
-    const slotKey: string = body?.slotKey;
-    const state: State = body?.state;
+    const slotKey: string | undefined = body?.slotKey;
+    const available: boolean | undefined = body?.available;
 
-    if (!slotKey || !state) return json(400, { error: "Missing slotKey/state" });
-    if (!["available", "clear"].includes(state)) return json(400, { error: "Invalid state" });
-    if (!isValidSlotKey(slotKey)) return json(400, { error: "Invalid slotKey format/hour" });
+    if (!slotKey || typeof slotKey !== "string") return json(400, { error: "Missing slotKey" });
+    if (typeof available !== "boolean") return json(400, { error: "Missing available boolean" });
+    if (!isValidSlotKey(slotKey)) return json(400, { error: "Invalid slotKey" });
 
-    const store = getStore("playsure-schedule");
-    const raw = await store.get(KEY).catch(() => null);
+    const store = getStore(STORE_NAME);
 
-    const parsed = raw ? JSON.parse(raw as string) : null;
-    const slotsIn = (parsed?.slots ?? {}) as Record<string, any>;
+    // ✅ Concurrency-safe (ETag) + retries
+    const maxRetries = 10;
 
-    // ✅ On recharge/normalise en filtrant tout ce qui n'est pas valide
-    const data: Data = {
-      version: 1,
-      updatedAt: parsed?.updatedAt || new Date().toISOString(),
-      slots: {},
-    };
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const entry = await store
+        .getWithMetadata(KEY, { type: "json", consistency: "strong" })
+        .catch(() => null);
 
-    for (const [k, v] of Object.entries(slotsIn)) {
-      if (!isValidSlotKey(k)) continue;
-      const a = Array.isArray(v?.a) ? v.a.map(String) : [];
-      if (a.length) data.slots[k] = { a };
+      const current: AvailabilityData = (entry?.data as any) || defaultData();
+      const etag: string | undefined = entry?.etag;
+
+      const next: AvailabilityData = {
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        slots: cleanSlots(current.slots || {}),
+      };
+
+      const slot = next.slots[slotKey] || { a: [] };
+      const set = new Set(slot.a);
+
+      if (available) set.add(username);
+      else set.delete(username);
+
+      const arr = Array.from(set).sort((aa, bb) => aa.localeCompare(bb, "fr"));
+      if (arr.length === 0) delete next.slots[slotKey];
+      else next.slots[slotKey] = { a: arr };
+
+      const writeOpts = etag ? { onlyIfMatch: etag } : { onlyIfNew: true };
+
+      try {
+        // ✅ pas de result.modified: succès = écrit
+        await store.setJSON(KEY, next, writeOpts as any);
+
+        return json(200, {
+          ok: true,
+          slotKey,
+          slot: next.slots[slotKey] || null,
+          updatedAt: next.updatedAt,
+        });
+      } catch (err: any) {
+        // conflit => retry
+        if (isPreconditionConflict(err)) {
+          await new Promise((r) => setTimeout(r, 30 + attempt * 40));
+          continue;
+        }
+        throw err;
+      }
     }
 
-    const cur = data.slots[slotKey] ?? { a: [] };
-    const a = new Set(cur.a);
-
-    a.delete(username);
-    if (state === "available") a.add(username);
-
-    const next = { a: Array.from(a).sort((x, y) => x.localeCompare(y)) };
-
-    if (next.a.length === 0) delete data.slots[slotKey];
-    else data.slots[slotKey] = next;
-
-    data.updatedAt = new Date().toISOString();
-    await store.set(KEY, JSON.stringify(data));
-
-    return json(200, { ok: true, slotKey, slot: data.slots[slotKey] ?? { a: [] } });
+    return json(409, { error: "Concurrent update, please retry" });
   } catch (e: any) {
     return json(500, { error: e?.message || "Server error" });
   }

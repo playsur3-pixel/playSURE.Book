@@ -29,7 +29,7 @@ export default function Home() {
         </p>
       </div>
 
-      <AvailabilityGrid meUsername={username} />
+      <AvailabilityGrid username={username} />
     </div>
   );
 }
