@@ -181,20 +181,19 @@ export default function AvailabilityGrid({ username }: { username: string }) {
 
   return (
     <div className="grid gap-4">
-      <div className="flex items-center justify-between">
-        <div className="rounded-xl2 border border-border bg-card/60 p-6 shadow-soft backdrop-blur">
-            <h2 className="text-lg font-semibold">Accueil</h2>
-                <p className="mt-2 text-sm text-muted">
-                    Planning de disponibilités (17h → 23h) sur 4 semaines.
-                </p>
+      {/* ✅ Header : Accueil étiré + responsive */}
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="w-full md:flex-1 md:min-w-0 rounded-xl2 border border-border bg-card/60 p-6 shadow-soft backdrop-blur">
+          <h2 className="text-lg font-semibold">Accueil</h2>
+          <p className="mt-2 text-sm text-muted">
+            Planning de disponibilités (17h → 23h) sur 4 semaines.
+          </p>
         </div>
 
-        {/* <div>
-          <div className="text-sm font-semibold">Planning de disponibilités</div>
-          <div className="text-xs text-white/60">17h → 23h • clic = dispo / retirer dispo</div>
-        </div> */}
         {view.updatedAt && (
-          <div className="text-[11px] text-white/50">maj: {new Date(view.updatedAt).toLocaleString("fr-FR")}</div>
+          <div className="text-[11px] text-white/50 md:text-right md:pl-4">
+            maj: {new Date(view.updatedAt).toLocaleString("fr-FR")}
+          </div>
         )}
       </div>
 
@@ -206,13 +205,18 @@ export default function AvailabilityGrid({ username }: { username: string }) {
             Semaine {w.index + 1} • {dayLabelFR(w.days[0])} → {dayLabelFR(w.days[6])}
           </summary>
 
-          <div className="overflow-x-auto p-3 pt-0">
+          {/* ✅ Mobile: scroll horizontal propre */}
+          <div className="overflow-x-auto -mx-4 px-4 pb-3 pt-0 md:mx-0 md:px-3">
             <table className="min-w-[880px] w-full border-separate border-spacing-2">
               <thead>
                 <tr>
-                  <th className="w-20 text-left text-xs text-white/60">Heure</th>
+                  {/* ✅ Sticky “Heure” */}
+                  <th className="sticky left-0 z-20 w-20 rounded-xl2 border border-white/10 bg-card/70 px-2 py-2 text-left text-xs text-white/70 backdrop-blur">
+                    Heure
+                  </th>
+
                   {w.days.map((d) => (
-                    <th key={dateKeyLocal(d)} className="text-left text-xs text-white/60">
+                    <th key={dateKeyLocal(d)} className="px-1 text-left text-xs text-white/60">
                       {dayLabelFR(d)}
                     </th>
                   ))}
@@ -222,7 +226,10 @@ export default function AvailabilityGrid({ username }: { username: string }) {
               <tbody>
                 {HOURS.map((h) => (
                   <tr key={h}>
-                    <td className="text-xs text-white/70">{rangeLabel(h)}</td>
+                    {/* ✅ Sticky “Heure” */}
+                    <td className="sticky left-0 z-10 rounded-xl2 border border-white/10 bg-card/60 px-2 py-2 text-xs text-white/75 backdrop-blur">
+                      {rangeLabel(h)}
+                    </td>
 
                     {w.days.map((d) => {
                       const key = slotKey(d, h);
