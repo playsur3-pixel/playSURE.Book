@@ -1,7 +1,7 @@
 import type { Handler } from "@netlify/functions";
-import { connectLambda, getStore } from "@netlify/blobs";
 import jwt from "jsonwebtoken";
 import { getCookie, json } from "./_utils";
+import { getBlobsStore } from "./_blobs";
 
 type Slot = { a: string[] };
 type Data = { version: 1; updatedAt: string; slots: Record<string, Slot> };
@@ -17,7 +17,6 @@ function pad(n: number) {
 }
 
 function parseSlotKey(slotKey: string) {
-  // format: YYYY-MM-DD|17 .. |23
   const m = /^(\d{4}-\d{2}-\d{2})\|(\d{2})$/.exec(slotKey);
   if (!m) return null;
   const hour = Number(m[2]);
@@ -26,8 +25,6 @@ function parseSlotKey(slotKey: string) {
 }
 
 export const handler: Handler = async (event) => {
-  connectLambda(event as any);
-
   try {
     if (event.httpMethod !== "POST") return json(405, { error: "Method Not Allowed" });
 
@@ -49,36 +46,32 @@ export const handler: Handler = async (event) => {
 
     if (!slotKey || !state) return json(400, { error: "Missing slotKey/state" });
     if (!["available", "clear"].includes(state)) return json(400, { error: "Invalid state" });
-
     if (!parseSlotKey(slotKey)) return json(400, { error: "Invalid slotKey format" });
 
-    const store = getStore("playsure-schedule");
+    const store = getBlobsStore(event, "playsure-schedule");
     const raw = await store.get(KEY).catch(() => null);
-
-    // Backward compatible load
     const parsed = raw ? JSON.parse(raw as string) : null;
-    const slotsIn = (parsed?.slots ?? {}) as Record<string, any>;
 
+    const slotsIn = (parsed?.slots ?? {}) as Record<string, any>;
     const data: Data = {
       version: 1,
       updatedAt: parsed?.updatedAt || new Date().toISOString(),
       slots: {},
     };
 
-    // normalize old -> new
+    // compat ancien format
     for (const [k, v] of Object.entries(slotsIn)) {
       const a = Array.isArray(v?.a) ? v.a.map(String) : [];
       if (a.length) data.slots[k] = { a };
     }
 
-    const current = data.slots[slotKey] ?? { a: [] };
-    const a = new Set(current.a);
+    const cur = data.slots[slotKey] ?? { a: [] };
+    const a = new Set(cur.a);
 
-    // toggle for this user
     a.delete(username);
     if (state === "available") a.add(username);
 
-    const next: Slot = Array.from(a).length ? { a: Array.from(a).sort((x, y) => x.localeCompare(y)) } : { a: [] };
+    const next = { a: Array.from(a).sort((x, y) => x.localeCompare(y)) };
 
     if (next.a.length === 0) delete data.slots[slotKey];
     else data.slots[slotKey] = next;
