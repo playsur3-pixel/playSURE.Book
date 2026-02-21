@@ -64,9 +64,7 @@ function isValidSlotKey(slotKey: string): boolean {
 
 function toStringArray(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
-  return input
-    .map((x) => String(x).trim())
-    .filter((s) => s.length > 0);
+  return input.map((x) => String(x).trim()).filter((s) => s.length > 0);
 }
 
 function cleanSlots(slots: Record<string, AvailabilitySlot>) {
@@ -76,9 +74,7 @@ function cleanSlots(slots: Record<string, AvailabilitySlot>) {
     if (!isValidSlotKey(k)) continue;
 
     const cleaned = toStringArray((v as any)?.a);
-    const uniq = Array.from(new Set(cleaned)).sort((aa: string, bb: string) =>
-      aa.localeCompare(bb, "fr")
-    );
+    const uniq = Array.from(new Set(cleaned)).sort((aa, bb) => aa.localeCompare(bb, "fr"));
 
     if (uniq.length) out[k] = { a: uniq };
   }
@@ -86,18 +82,8 @@ function cleanSlots(slots: Record<string, AvailabilitySlot>) {
   return out;
 }
 
-function isPreconditionConflict(err: any) {
-  const status = err?.status ?? err?.statusCode ?? err?.response?.status;
-  if (status === 412) return true;
-
-  const msg = String(err?.message || "");
-  const name = String(err?.name || "");
-  return (
-    name.toLowerCase().includes("precondition") ||
-    msg.toLowerCase().includes("precondition") ||
-    msg.toLowerCase().includes("onlyifmatch") ||
-    msg.toLowerCase().includes("etag")
-  );
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 export const handler: Handler = async (event) => {
@@ -124,13 +110,13 @@ export const handler: Handler = async (event) => {
     if (typeof available !== "boolean") return json(400, { error: "Missing available boolean" });
     if (!isValidSlotKey(slotKey)) return json(400, { error: "Invalid slotKey" });
 
-    const store = getStore(STORE_NAME);
-    const maxRetries = 10;
+    // ✅ store-level strong (évite le “refresh stale” de l’eventual)
+    const store = getStore({ name: STORE_NAME, consistency: "strong" } as any);
+
+    const maxRetries = 12;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const entry = await store
-        .getWithMetadata(KEY, { type: "json", consistency: "strong" })
-        .catch(() => null);
+      const entry = await store.getWithMetadata(KEY, { type: "json" }).catch(() => null);
 
       const current: AvailabilityData = (entry?.data as any) || defaultData();
       const etag: string | undefined = entry?.etag;
@@ -141,40 +127,36 @@ export const handler: Handler = async (event) => {
         slots: cleanSlots(current.slots || {}),
       };
 
-      // ✅ Set<string> garanti
       const existing = next.slots[slotKey]?.a ?? [];
       const set = new Set<string>(toStringArray(existing));
 
       if (available) set.add(username);
       else set.delete(username);
 
-      const arr = Array.from(set).sort((aa: string, bb: string) => aa.localeCompare(bb, "fr"));
-
+      const arr = Array.from(set).sort((aa, bb) => aa.localeCompare(bb, "fr"));
       if (arr.length === 0) delete next.slots[slotKey];
       else next.slots[slotKey] = { a: arr };
 
-      const writeOpts = etag ? { onlyIfMatch: etag } : { onlyIfNew: true };
+      // ✅ IMPORTANT: setJSON retourne { modified, etag }. Si modified=false => rien n'a été écrit.
+      const opts = etag ? { onlyIfMatch: etag } : { onlyIfNew: true };
+      const { modified, etag: newEtag } = await store.setJSON(KEY, next, opts as any);
 
-      try {
-        await store.setJSON(KEY, next, writeOpts as any);
-
+      if (modified) {
         return json(200, {
           ok: true,
           slotKey,
           slot: next.slots[slotKey] || null,
           updatedAt: next.updatedAt,
+          etag: newEtag ?? null,
           store: STORE_NAME,
         });
-      } catch (err: any) {
-        if (isPreconditionConflict(err)) {
-          await new Promise((r) => setTimeout(r, 30 + attempt * 40));
-          continue;
-        }
-        throw err;
       }
+
+      // conflit (quelqu’un a écrit entre-temps / ou création concurrente) => retry
+      await sleep(40 + attempt * 35);
     }
 
-    return json(409, { error: "Concurrent update, please retry" });
+    return json(409, { error: "Write conflict (too many retries). Please retry." });
   } catch (e: any) {
     return json(500, { error: e?.message || "Server error" });
   }

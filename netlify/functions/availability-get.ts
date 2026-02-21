@@ -11,6 +11,9 @@ const KEY = "availability.json";
 const MIN_HOUR = 17;
 const MAX_HOUR = 22;
 
+const store = getStore({ name: STORE_NAME, consistency: "strong" } as any);
+const entry = await store.getWithMetadata(KEY, { type: "json" });
+
 function isValidSlotKey(slotKey: string) {
   const m = /^(\d{4}-\d{2}-\d{2})\|(\d{1,2})$/.exec(slotKey);
   if (!m) return false;
