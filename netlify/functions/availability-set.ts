@@ -9,7 +9,6 @@ const JWT_SECRET = process.env.AUTH_JWT_SECRET || "dev-secret";
 const STORE_NAME = process.env.AVAILABILITY_STORE || "playsure-schedule";
 const KEY = "availability.json";
 
-// 17->23 => slots start hours: 17..22 (dernier = 22-23)
 const MIN_HOUR = 17;
 const MAX_HOUR = 22;
 
@@ -63,17 +62,27 @@ function isValidSlotKey(slotKey: string): boolean {
   return d.toISOString().slice(0, 10) === datePart;
 }
 
+function toStringArray(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((x) => String(x).trim())
+    .filter((s) => s.length > 0);
+}
+
 function cleanSlots(slots: Record<string, AvailabilitySlot>) {
   const out: Record<string, AvailabilitySlot> = {};
+
   for (const [k, v] of Object.entries(slots || {})) {
     if (!isValidSlotKey(k)) continue;
-    const a = Array.isArray((v as any)?.a)
-      ? (v as any).a.filter((x: any) => typeof x === "string" && x.trim())
-      : [];
-    const uniq = Array.from(new Set(a.map((x: string) => x.trim())));
-    if (uniq.length === 0) continue;
-    out[k] = { a: uniq.sort((aa, bb) => aa.localeCompare(bb, "fr")) };
+
+    const cleaned = toStringArray((v as any)?.a);
+    const uniq = Array.from(new Set(cleaned)).sort((aa: string, bb: string) =>
+      aa.localeCompare(bb, "fr")
+    );
+
+    if (uniq.length) out[k] = { a: uniq };
   }
+
   return out;
 }
 
@@ -103,7 +112,7 @@ export const handler: Handler = async (event) => {
     const body = event.body ? JSON.parse(event.body) : null;
     const slotKey: string | undefined = body?.slotKey;
 
-    // ✅ accepte { state: "available" | "clear" } et { available: boolean }
+    // accepte ancien format (state) + nouveau (available)
     let available: boolean | undefined = body?.available;
     if (typeof available !== "boolean") {
       const state = body?.state;
@@ -116,8 +125,6 @@ export const handler: Handler = async (event) => {
     if (!isValidSlotKey(slotKey)) return json(400, { error: "Invalid slotKey" });
 
     const store = getStore(STORE_NAME);
-
-    // ✅ Concurrency-safe (ETag) + retries
     const maxRetries = 10;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -134,13 +141,15 @@ export const handler: Handler = async (event) => {
         slots: cleanSlots(current.slots || {}),
       };
 
-      const slot = next.slots[slotKey] || { a: [] };
-      const set = new Set(slot.a);
+      // ✅ Set<string> garanti
+      const existing = next.slots[slotKey]?.a ?? [];
+      const set = new Set<string>(toStringArray(existing));
 
       if (available) set.add(username);
       else set.delete(username);
 
-      const arr = Array.from(set).sort((aa, bb) => aa.localeCompare(bb, "fr"));
+      const arr = Array.from(set).sort((aa: string, bb: string) => aa.localeCompare(bb, "fr"));
+
       if (arr.length === 0) delete next.slots[slotKey];
       else next.slots[slotKey] = { a: arr };
 
