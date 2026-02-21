@@ -1,52 +1,35 @@
 import type { Handler } from "@netlify/functions";
 import { connectLambda, getStore } from "@netlify/blobs";
 import jwt from "jsonwebtoken";
-import { json } from "./_utils";
+import { getCookie, json } from "./_utils";
+import whitelist from "./whitelist.json";
 
 const COOKIE_NAME = process.env.AUTH_COOKIE_NAME || "playsure_token";
 const JWT_SECRET = process.env.AUTH_JWT_SECRET || "dev-secret";
 
 const STORE_NAME = process.env.AVAILABILITY_STORE || "playsure-schedule";
-const KEY = "availability.json";
 
 const MIN_HOUR = 17;
-const MAX_HOUR = 22;
+const MAX_HOUR = 22; // dernier slot = 22-23
 
-type AvailabilitySlot = { a: string[] };
-type AvailabilityData = {
+type UserFile = {
   version: 1;
+  user: string;            // display name
   updatedAt: string;
-  slots: Record<string, AvailabilitySlot>;
+  available: string[];     // ["YYYY-MM-DD|17", ...]
 };
 
-function parseCookies(cookieHeader: string | undefined) {
-  const out: Record<string, string> = {};
-  if (!cookieHeader) return out;
-  cookieHeader.split(";").forEach((part) => {
-    const [k, ...rest] = part.trim().split("=");
-    if (!k) return;
-    out[k] = decodeURIComponent(rest.join("=") || "");
-  });
-  return out;
+type Slot = { a: string[] };
+
+function normUserKey(name: string) {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "_");
 }
 
-function getUsernameFromAuth(event: any): string | null {
-  const cookieHeader = event.headers?.cookie || event.headers?.Cookie;
-  const cookies = parseCookies(cookieHeader);
-  const token = cookies[COOKIE_NAME];
-  if (!token) return null;
-
-  try {
-    const payload = jwt.verify(token, JWT_SECRET) as any;
-    const sub = payload?.sub;
-    return typeof sub === "string" && sub.trim() ? sub.trim() : null;
-  } catch {
-    return null;
-  }
-}
-
-function defaultData(): AvailabilityData {
-  return { version: 1, updatedAt: new Date().toISOString(), slots: {} };
+function userBlobKey(displayName: string) {
+  return `availability/users/${normUserKey(displayName)}.json`;
 }
 
 function isValidSlotKey(slotKey: string): boolean {
@@ -67,23 +50,25 @@ function toStringArray(input: unknown): string[] {
   return input.map((x) => String(x).trim()).filter((s) => s.length > 0);
 }
 
-function cleanSlots(slots: Record<string, AvailabilitySlot>) {
-  const out: Record<string, AvailabilitySlot> = {};
-
-  for (const [k, v] of Object.entries(slots || {})) {
-    if (!isValidSlotKey(k)) continue;
-
-    const cleaned = toStringArray((v as any)?.a);
-    const uniq = Array.from(new Set(cleaned)).sort((aa, bb) => aa.localeCompare(bb, "fr"));
-
-    if (uniq.length) out[k] = { a: uniq };
-  }
-
-  return out;
+function getAllowedUsers(): string[] {
+  const allowed = (whitelist as any)?.allowed;
+  return Array.isArray(allowed) ? allowed.map((x: any) => String(x).trim()).filter(Boolean) : [];
 }
 
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
+async function computeSlot(store: any, slotKey: string, allowedUsers: string[]): Promise<Slot> {
+  const a: string[] = [];
+  for (const u of allowedUsers) {
+    const key = userBlobKey(u);
+    const uf = (await store.get(key, { type: "json" }).catch(() => null)) as any;
+    if (!uf) continue;
+
+    const avail = toStringArray(uf.available);
+    if (avail.includes(slotKey)) {
+      a.push(String(uf.user || u));
+    }
+  }
+  a.sort((x, y) => x.localeCompare(y, "fr"));
+  return { a };
 }
 
 export const handler: Handler = async (event) => {
@@ -92,13 +77,31 @@ export const handler: Handler = async (event) => {
   try {
     if (event.httpMethod !== "POST") return json(405, { error: "Method Not Allowed" });
 
-    const username = getUsernameFromAuth(event);
-    if (!username) return json(401, { error: "Unauthorized" });
+    // Auth
+    const token = getCookie(event.headers.cookie, COOKIE_NAME);
+    if (!token) return json(401, { error: "Not authenticated" });
 
+    let username = "";
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      username = String(decoded?.sub || "").trim();
+    } catch {
+      return json(401, { error: "Invalid token" });
+    }
+    if (!username) return json(401, { error: "Invalid token payload" });
+
+    // Whitelist (bloque toute écriture si pas autorisé)
+    const allowedUsers = getAllowedUsers();
+    const allowedSet = new Set(allowedUsers.map((u) => u.trim().toLowerCase()));
+    if (!allowedSet.has(username.toLowerCase())) {
+      return json(403, { error: "User not whitelisted" });
+    }
+
+    // Body
     const body = event.body ? JSON.parse(event.body) : null;
-    const slotKey: string | undefined = body?.slotKey;
+    const slotKey: string = String(body?.slotKey ?? "").trim();
 
-    // accepte ancien format (state) + nouveau (available)
+    // support legacy {state:"available"|"clear"} + new {available:boolean}
     let available: boolean | undefined = body?.available;
     if (typeof available !== "boolean") {
       const state = body?.state;
@@ -106,57 +109,48 @@ export const handler: Handler = async (event) => {
       if (state === "clear") available = false;
     }
 
-    if (!slotKey || typeof slotKey !== "string") return json(400, { error: "Missing slotKey" });
+    if (!slotKey) return json(400, { error: "Missing slotKey" });
     if (typeof available !== "boolean") return json(400, { error: "Missing available boolean" });
     if (!isValidSlotKey(slotKey)) return json(400, { error: "Invalid slotKey" });
 
-    // ✅ store-level strong (évite le “refresh stale” de l’eventual)
-    const store = getStore({ name: STORE_NAME, consistency: "strong" } as any);
+    const store = getStore(STORE_NAME);
 
-    const maxRetries = 12;
+    // Read user file
+    const key = userBlobKey(username);
+    const current = (await store.get(key, { type: "json" }).catch(() => null)) as any;
 
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const entry = await store.getWithMetadata(KEY, { type: "json" }).catch(() => null);
+    const file: UserFile = {
+      version: 1,
+      user: username,
+      updatedAt: new Date().toISOString(),
+      available: [],
+    };
 
-      const current: AvailabilityData = (entry?.data as any) || defaultData();
-      const etag: string | undefined = entry?.etag;
-
-      const next: AvailabilityData = {
-        version: 1,
-        updatedAt: new Date().toISOString(),
-        slots: cleanSlots(current.slots || {}),
-      };
-
-      const existing = next.slots[slotKey]?.a ?? [];
-      const set = new Set<string>(toStringArray(existing));
-
-      if (available) set.add(username);
-      else set.delete(username);
-
-      const arr = Array.from(set).sort((aa, bb) => aa.localeCompare(bb, "fr"));
-      if (arr.length === 0) delete next.slots[slotKey];
-      else next.slots[slotKey] = { a: arr };
-
-      // ✅ IMPORTANT: setJSON retourne { modified, etag }. Si modified=false => rien n'a été écrit.
-      const opts = etag ? { onlyIfMatch: etag } : { onlyIfNew: true };
-      const { modified, etag: newEtag } = await store.setJSON(KEY, next, opts as any);
-
-      if (modified) {
-        return json(200, {
-          ok: true,
-          slotKey,
-          slot: next.slots[slotKey] || null,
-          updatedAt: next.updatedAt,
-          etag: newEtag ?? null,
-          store: STORE_NAME,
-        });
-      }
-
-      // conflit (quelqu’un a écrit entre-temps / ou création concurrente) => retry
-      await sleep(40 + attempt * 35);
+    if (current) {
+      file.user = String(current.user || username);
+      file.available = toStringArray(current.available).filter(isValidSlotKey);
     }
 
-    return json(409, { error: "Write conflict (too many retries). Please retry." });
+    const set = new Set<string>(file.available);
+    if (available) set.add(slotKey);
+    else set.delete(slotKey);
+
+    file.available = Array.from(set).sort((a, b) => a.localeCompare(b, "fr"));
+    file.updatedAt = new Date().toISOString();
+
+    // Write user file (pas de conflit avec les autres users)
+    await store.setJSON(key, file);
+
+    // Renvoie le slot reconstruit (pour l’UI instant)
+    const slot = await computeSlot(store, slotKey, allowedUsers);
+
+    return json(200, {
+      ok: true,
+      slotKey,
+      slot,
+      updatedAt: file.updatedAt,
+      store: STORE_NAME,
+    });
   } catch (e: any) {
     return json(500, { error: e?.message || "Server error" });
   }
