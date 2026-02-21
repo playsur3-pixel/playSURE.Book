@@ -3,12 +3,15 @@ import { connectLambda, getStore } from "@netlify/blobs";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { json } from "./_utils";
-
-// Whitelist locale (éditée à la main)
 import whitelist from "./whitelist.json";
 
 const COOKIE_NAME = process.env.AUTH_COOKIE_NAME || "playsure_token";
 const JWT_SECRET = process.env.AUTH_JWT_SECRET || "dev-secret";
+
+type UsersDb = Record<
+  string,
+  { username: string; passwordHash: string; role: "user" | "admin"; createdAt?: string }
+>;
 
 function makeCookie(token: string) {
   const secure = process.env.NODE_ENV === "production" ? "Secure; " : "";
@@ -20,7 +23,6 @@ function norm(s: string) {
 }
 
 export const handler: Handler = async (event) => {
-  // Ensure Netlify Blobs environment is configured in Lambda compatibility mode
   connectLambda(event as any);
 
   try {
@@ -28,21 +30,22 @@ export const handler: Handler = async (event) => {
 
     const body = event.body ? JSON.parse(event.body) : null;
     const usernameInput = String(body?.username ?? "").trim();
-    const password = body?.password;
+    const password = String(body?.password ?? "");
 
     if (!usernameInput || !password) return json(400, { error: "Missing credentials" });
 
-    // ✅ Whitelist check (block at login)
+    // ✅ Whitelist
     const allowed = new Set((whitelist as any)?.allowed?.map((u: string) => norm(u)) ?? []);
     if (!allowed.has(norm(usernameInput))) {
       return json(403, { error: "User not whitelisted" });
     }
 
     const store = getStore("playsure-auth");
-    const usersRaw = await store.get("users.json").catch(() => null);
-    const users = usersRaw ? JSON.parse(usersRaw as string) : {};
 
-    // Try exact match first, then case-insensitive match (pratique si tu tapes playsure vs playSURE)
+    // ✅ lecture JSON via type:"json"
+    const users = (await store.get("users.json", { type: "json" }).catch(() => ({}))) as UsersDb;
+
+    // exact match puis case-insensitive
     let user = users[usernameInput];
     if (!user) {
       const key = Object.keys(users).find((k) => norm(k) === norm(usernameInput));

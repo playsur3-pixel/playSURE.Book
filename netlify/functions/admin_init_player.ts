@@ -3,18 +3,14 @@ import { connectLambda, getStore } from "@netlify/blobs";
 import bcrypt from "bcryptjs";
 import { json } from "./_utils";
 
-/**
- * Create a user via admin secret header.
- * PowerShell client example:
- *  $admin = "..."
- *  $uri   = "https://<site>/.netlify/functions/admin_init_player"
- *  $body = @{ pseudo="playSURE"; password="romainlg" } | ConvertTo-Json
- *  Invoke-RestMethod -Method Post -Uri $uri -Headers @{ "x-admin-secret" = $admin } -ContentType "application/json" -Body $body
- */
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
 
+type UsersDb = Record<
+  string,
+  { username: string; passwordHash: string; role: "user" | "admin"; createdAt: string }
+>;
+
 export const handler: Handler = async (event) => {
-  // Ensure Netlify Blobs environment is configured in Lambda compatibility mode
   connectLambda(event as any);
 
   try {
@@ -25,15 +21,16 @@ export const handler: Handler = async (event) => {
     if (!headerSecret || headerSecret !== ADMIN_SECRET) return json(401, { error: "Unauthorized" });
 
     const body = event.body ? JSON.parse(event.body) : null;
-    const pseudo = body?.pseudo?.trim();
-    const password = body?.password;
+    const pseudo = String(body?.pseudo ?? "").trim();
+    const password = String(body?.password ?? "");
 
     if (!pseudo || !password) return json(400, { error: "Missing pseudo/password" });
 
     const store = getStore("playsure-auth");
     const usersKey = "users.json";
-    const raw = await store.get(usersKey).catch(() => null);
-    const users = raw ? JSON.parse(raw as string) : {};
+
+    // ✅ lecture JSON via type:"json" (pas de getJSON)
+    const users = (await store.get(usersKey, { type: "json" }).catch(() => ({}))) as UsersDb;
 
     if (users[pseudo]) return json(409, { error: "User already exists" });
 
@@ -44,7 +41,8 @@ export const handler: Handler = async (event) => {
       createdAt: new Date().toISOString(),
     };
 
-    await store.set(usersKey, JSON.stringify(users));
+    // ✅ écriture JSON
+    await store.setJSON(usersKey, users);
 
     return json(200, { ok: true, username: pseudo });
   } catch (e: any) {
