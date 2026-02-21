@@ -4,26 +4,15 @@ import AvailabilityGrid from "../components/AvailabilityGrid";
 
 export default function Home() {
   const [username, setUsername] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      try {
-        setErr(null);
-        const me = await apiMe();
-        setUsername(me.authenticated ? (me.username || null) : null);
-      } catch (e: any) {
-        console.error(e);
-        setErr("Impossible de vérifier la session (apiMe).");
-        setUsername(null);
-      } finally {
-        setLoading(false);
-      }
+      const me = await apiMe();
+      setUsername(me.authenticated ? (me.username || null) : null);
     })();
   }, []);
 
-  if (loading) {
+  if (!username) {
     return (
       <div className="rounded-xl2 border border-border bg-card/60 p-6 shadow-soft backdrop-blur text-sm text-muted">
         Chargement…
@@ -31,21 +20,16 @@ export default function Home() {
     );
   }
 
-  if (err) {
-    return (
-      <div className="rounded-xl2 border border-border bg-red-500/10 p-6 shadow-soft backdrop-blur text-sm text-red-200">
-        {err}
+  return (
+    <div className="grid gap-4">
+      <div className="rounded-xl2 border border-border bg-card/60 p-6 shadow-soft backdrop-blur">
+        <h2 className="text-lg font-semibold">Accueil</h2>
+        <p className="mt-2 text-sm text-muted">
+          Planning de disponibilités (17h → 23h) sur 4 semaines.
+        </p>
       </div>
-    );
-  }
 
-  if (!username) {
-    return (
-      <div className="rounded-xl2 border border-border bg-card/60 p-6 shadow-soft backdrop-blur text-sm text-muted">
-        Session expirée. Recharge la page ou reconnecte-toi.
-      </div>
-    );
-  }
-
-  return <AvailabilityGrid username={username} />;
+      <AvailabilityGrid username={username} />
+    </div>
+  );
 }

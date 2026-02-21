@@ -1,7 +1,11 @@
 export function json(statusCode: number, body: any, extraHeaders: Record<string,string> = {}) {
   return {
     statusCode,
-    headers: { "content-type": "application/json", ...extraHeaders },
+    headers: {
+      "content-type": "application/json",
+      "cache-control": "no-store, no-cache, must-revalidate, max-age=0",
+      ...extraHeaders,
+    },
     body: JSON.stringify(body),
   };
 }

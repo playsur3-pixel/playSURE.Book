@@ -1,10 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  apiAvailabilityGet,
-  apiAvailabilitySet,
-  type AvailabilityData,
-  type AvailabilitySlot,
-} from "../app/auth";
+import { apiAvailabilityGet, apiAvailabilitySet, type AvailabilityData, type AvailabilitySlot } from "../app/auth";
 
 // 17h -> 23h (dernier slot = 22-23)
 const HOURS = [17, 18, 19, 20, 21, 22];
@@ -16,7 +11,7 @@ function pad2(n: number) {
 
 function startOfWeekMondayAtNoon(d = new Date()) {
   const x = new Date(d);
-  // Midi local => évite les décalages DST / fuseaux
+  // midi local => évite les décalages DST/fuseau
   x.setHours(12, 0, 0, 0);
   const day = x.getDay(); // 0=Sun
   const diff = (day + 6) % 7; // Mon=0
@@ -42,11 +37,7 @@ function slotKey(d: Date, hour: number) {
 }
 
 function dayLabelFR(d: Date) {
-  return d.toLocaleDateString("fr-FR", {
-    weekday: "short",
-    day: "2-digit",
-    month: "2-digit",
-  });
+  return d.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "2-digit" });
 }
 
 function rangeLabel(h: number) {
@@ -58,20 +49,20 @@ function emptyData(): AvailabilityData {
 }
 
 export default function AvailabilityGrid({ username }: { username: string }) {
-  const [data, setData] = useState<AvailabilityData | null>(null);
-  const dataRef = useRef<AvailabilityData | null>(null);
+  const [data, setData] = useState<AvailabilityData>(emptyData());
+  const dataRef = useRef<AvailabilityData>(data);
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  // Saving UI (queue 1 par 1)
+  // Saving UI (1 action at a time)
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [savingPct, setSavingPct] = useState(0);
   const [savingDone, setSavingDone] = useState(false);
+
   const queueRef = useRef<string[]>([]);
   const runningRef = useRef(false);
 
-  // keep latest data in ref (évite les closures stale)
   useEffect(() => {
     dataRef.current = data;
   }, [data]);
@@ -85,31 +76,23 @@ export default function AvailabilityGrid({ username }: { username: string }) {
     });
   }, [week0]);
 
-  async function fetchAvailability() {
-    setLoading(true);
+  async function refresh() {
     setErr(null);
-
-    try {
-      const res = await apiAvailabilityGet();
-      const next = res?.data || emptyData();
-      setData(next);
-    } catch (e: any) {
-      setErr(e?.message || "Erreur chargement");
-      setData(emptyData());
-    } finally {
-      setLoading(false);
-    }
+    const fresh = await apiAvailabilityGet();
+    setData(fresh);
   }
 
   useEffect(() => {
-    let alive = true;
     (async () => {
-      if (!alive) return;
-      await fetchAvailability();
+      try {
+        setLoading(true);
+        await refresh();
+      } catch (e: any) {
+        setErr(e?.message || "Erreur chargement");
+      } finally {
+        setLoading(false);
+      }
     })();
-    return () => {
-      alive = false;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -124,12 +107,12 @@ export default function AvailabilityGrid({ username }: { username: string }) {
     while (queueRef.current.length) {
       const key = queueRef.current.shift()!;
 
-      // calcule sur la donnée la plus récente
+      // calcule sur la donnée la plus récente (anti stale)
       const current = dataRef.current || emptyData();
       const already = !!current.slots?.[key]?.a?.includes(username);
       const nextAvailable = !already;
 
-      // UI progress
+      // UI progress ring
       setSavingKey(key);
       setSavingPct(0);
       setSavingDone(false);
@@ -143,24 +126,19 @@ export default function AvailabilityGrid({ username }: { username: string }) {
       try {
         const j = await apiAvailabilitySet(key, nextAvailable);
 
-        // Applique la vérité serveur sur ce slot
         setData((prev) => {
-          const base: AvailabilityData = prev || emptyData();
-          const slots = { ...(base.slots || {}) };
+          const base = prev || emptyData();
+          const slots = { ...(base.slots || {}) } as Record<string, AvailabilitySlot>;
 
-          if (j.slot) slots[j.slotKey] = j.slot as AvailabilitySlot;
+          if (j.slot) slots[j.slotKey] = j.slot;
           else delete slots[j.slotKey];
 
-          return {
-            version: 1,
-            updatedAt: j.updatedAt || new Date().toISOString(),
-            slots,
-          };
+          return { version: 1, updatedAt: j.updatedAt || new Date().toISOString(), slots };
         });
 
         setSavingPct(100);
         setSavingDone(true);
-        await new Promise((rr) => setTimeout(rr, 220));
+        await new Promise((r) => setTimeout(r, 180));
       } catch (e: any) {
         setErr(e?.message || "Erreur sauvegarde");
       } finally {
@@ -170,31 +148,32 @@ export default function AvailabilityGrid({ username }: { username: string }) {
       }
     }
 
+    // ✅ Reconciliation finale: garantit que la page reflète EXACTEMENT le serveur
+    try {
+      await refresh();
+    } catch {}
     runningRef.current = false;
   }
 
   if (loading) {
-    return <div className="rounded-xl2 border border-border bg-card/60 p-4">Chargement…</div>;
+    return (
+      <div className="rounded-xl2 border border-border bg-card/60 p-4 shadow-soft backdrop-blur text-sm text-muted">
+        Chargement…
+      </div>
+    );
   }
-
-  const view = data || emptyData();
 
   return (
     <div className="grid gap-4">
-      {/* ✅ Header : Accueil étiré + responsive */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="w-full md:flex-1 md:min-w-0 rounded-xl2 border border-border bg-card/60 p-6 shadow-soft backdrop-blur">
           <h2 className="text-lg font-semibold">Accueil</h2>
-          <p className="mt-2 text-sm text-muted">
-            Planning de disponibilités (17h → 23h) sur 4 semaines.
-          </p>
+          <p className="mt-2 text-sm text-muted">Planning de disponibilités (17h → 23h) sur 4 semaines.</p>
         </div>
 
-        {view.updatedAt && (
-          <div className="text-[11px] text-white/50 md:text-right md:pl-4">
-            maj: {new Date(view.updatedAt).toLocaleString("fr-FR")}
-          </div>
-        )}
+        <div className="text-[11px] text-white/50 md:text-right md:pl-4">
+          maj: {new Date(data.updatedAt).toLocaleString("fr-FR")}
+        </div>
       </div>
 
       {err && <div className="rounded-xl bg-red-500/10 p-3 text-xs text-red-200">{err}</div>}
@@ -205,16 +184,13 @@ export default function AvailabilityGrid({ username }: { username: string }) {
             Semaine {w.index + 1} • {dayLabelFR(w.days[0])} → {dayLabelFR(w.days[6])}
           </summary>
 
-          {/* ✅ Mobile: scroll horizontal propre */}
           <div className="overflow-x-auto -mx-4 px-4 pb-3 pt-0 md:mx-0 md:px-3">
             <table className="min-w-[880px] w-full border-separate border-spacing-2">
               <thead>
                 <tr>
-                  {/* ✅ Sticky “Heure” */}
                   <th className="sticky left-0 z-20 w-20 rounded-xl2 border border-white/10 bg-card/70 px-2 py-2 text-left text-xs text-white/70 backdrop-blur">
                     Heure
                   </th>
-
                   {w.days.map((d) => (
                     <th key={dateKeyLocal(d)} className="px-1 text-left text-xs text-white/60">
                       {dayLabelFR(d)}
@@ -226,14 +202,13 @@ export default function AvailabilityGrid({ username }: { username: string }) {
               <tbody>
                 {HOURS.map((h) => (
                   <tr key={h}>
-                    {/* ✅ Sticky “Heure” */}
                     <td className="sticky left-0 z-10 rounded-xl2 border border-white/10 bg-card/60 px-2 py-2 text-xs text-white/75 backdrop-blur">
                       {rangeLabel(h)}
                     </td>
 
                     {w.days.map((d) => {
                       const key = slotKey(d, h);
-                      const names = view.slots?.[key]?.a || [];
+                      const names = data.slots?.[key]?.a || [];
                       const mine = names.includes(username);
                       const isSaving = savingKey === key;
 
@@ -247,7 +222,6 @@ export default function AvailabilityGrid({ username }: { username: string }) {
                             mine ? "ring-1 ring-accent/50 bg-accent/10" : "",
                             isSaving ? "cursor-wait opacity-90" : "cursor-pointer",
                           ].join(" ")}
-                          title={`SlotKey: ${key}`}
                         >
                           <div className="flex flex-wrap gap-1">
                             {names.map((n) => (

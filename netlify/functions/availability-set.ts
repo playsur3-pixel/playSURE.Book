@@ -58,7 +58,6 @@ function isValidSlotKey(slotKey: string): boolean {
   const hour = Number(m[2]);
   if (!Number.isInteger(hour) || hour < MIN_HOUR || hour > MAX_HOUR) return false;
 
-  // Validation date (simple + stable)
   const d = new Date(`${datePart}T12:00:00.000Z`);
   if (Number.isNaN(d.getTime())) return false;
   return d.toISOString().slice(0, 10) === datePart;
@@ -68,8 +67,10 @@ function cleanSlots(slots: Record<string, AvailabilitySlot>) {
   const out: Record<string, AvailabilitySlot> = {};
   for (const [k, v] of Object.entries(slots || {})) {
     if (!isValidSlotKey(k)) continue;
-    const a = Array.isArray(v?.a) ? v.a.filter((x) => typeof x === "string" && x.trim()) : [];
-    const uniq = Array.from(new Set(a.map((x) => x.trim())));
+    const a = Array.isArray((v as any)?.a)
+      ? (v as any).a.filter((x: any) => typeof x === "string" && x.trim())
+      : [];
+    const uniq = Array.from(new Set(a.map((x: string) => x.trim())));
     if (uniq.length === 0) continue;
     out[k] = { a: uniq.sort((aa, bb) => aa.localeCompare(bb, "fr")) };
   }
@@ -77,7 +78,6 @@ function cleanSlots(slots: Record<string, AvailabilitySlot>) {
 }
 
 function isPreconditionConflict(err: any) {
-  // 412 = Precondition Failed (etag mismatch / onlyIfMatch / onlyIfNew)
   const status = err?.status ?? err?.statusCode ?? err?.response?.status;
   if (status === 412) return true;
 
@@ -92,7 +92,6 @@ function isPreconditionConflict(err: any) {
 }
 
 export const handler: Handler = async (event) => {
-  // ✅ obligatoire pour Blobs en lambda mode
   connectLambda(event as any);
 
   try {
@@ -103,7 +102,14 @@ export const handler: Handler = async (event) => {
 
     const body = event.body ? JSON.parse(event.body) : null;
     const slotKey: string | undefined = body?.slotKey;
-    const available: boolean | undefined = body?.available;
+
+    // ✅ accepte { state: "available" | "clear" } et { available: boolean }
+    let available: boolean | undefined = body?.available;
+    if (typeof available !== "boolean") {
+      const state = body?.state;
+      if (state === "available") available = true;
+      if (state === "clear") available = false;
+    }
 
     if (!slotKey || typeof slotKey !== "string") return json(400, { error: "Missing slotKey" });
     if (typeof available !== "boolean") return json(400, { error: "Missing available boolean" });
@@ -141,7 +147,6 @@ export const handler: Handler = async (event) => {
       const writeOpts = etag ? { onlyIfMatch: etag } : { onlyIfNew: true };
 
       try {
-        // ✅ pas de result.modified: succès = écrit
         await store.setJSON(KEY, next, writeOpts as any);
 
         return json(200, {
@@ -149,9 +154,9 @@ export const handler: Handler = async (event) => {
           slotKey,
           slot: next.slots[slotKey] || null,
           updatedAt: next.updatedAt,
+          store: STORE_NAME,
         });
       } catch (err: any) {
-        // conflit => retry
         if (isPreconditionConflict(err)) {
           await new Promise((r) => setTimeout(r, 30 + attempt * 40));
           continue;
