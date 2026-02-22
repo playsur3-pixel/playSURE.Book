@@ -1,3 +1,10 @@
+export function pctToGrid(xPct: number, yPct: number, rows: number, cols: number) {
+  const col = Math.min(cols - 1, Math.max(0, Math.floor((xPct / 100) * cols)));
+  const row = Math.min(rows - 1, Math.max(0, Math.floor((yPct / 100) * rows)));
+  const letter = String.fromCharCode(65 + col); // A..Z
+  return `${letter}${row + 1}`; // ex: "N1"
+}
+
 export default function GridOverlay({
   rows = 20,
   cols = 26,
