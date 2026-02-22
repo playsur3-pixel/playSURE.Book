@@ -119,6 +119,21 @@ export default function Mirage() {
               draggable={false}
             />
 
+            {selectedLineup && (
+            <button
+                type="button"
+                className="absolute -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-auto"
+                style={{ left: `${selectedLineup.throw.x}%`, top: `${selectedLineup.throw.y}%` }}
+                onClick={(e) => {
+                e.stopPropagation();
+                openDetails(selectedLineup.lineupId, selectedLineup.stuffId);
+                }}
+            >
+                <img src={ICONS.player} alt="" style={{ width: 34, height: 34 }} draggable={false}
+                    className="drop-shadow transition-transform hover:scale-110" />
+            </button>
+            )}
+
             <GridOverlay rows={rows} cols={cols} show={showGrid} />
 
             {/* Flèche + player uniquement si sélection */}
@@ -152,56 +167,42 @@ export default function Mirage() {
             )}
 
             {/* Markers RESULT (cliquables + hover preview) */}
-            {mirageLineups.map((l) => {
-              const isSelected = l.lineupId === selectedId;
-              const isHovered = l.lineupId === hoveredId;
+        {mirageLineups.map((l) => (
+        <button
+            key={l.lineupId}
+            type="button"
+            className="absolute -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-auto group"
+            style={{ left: `${l.result.x}%`, top: `${l.result.y}%` }}
+            onMouseEnter={() => setHoveredId(l.lineupId)}
+            onMouseLeave={() => setHoveredId((cur) => (cur === l.lineupId ? null : cur))}
+            onClick={(e) => {
+            e.stopPropagation();
+            setSelectedId(l.lineupId);
+            }}
+            title={l.title}
+        >
+            <img
+            src={ICONS[l.type]}
+            alt=""
+            draggable={false}
+            className="drop-shadow transition-transform group-hover:scale-110"
+            style={{ width: 30, height: 30 }}
+            />
 
-              return (
-                <button
-                  key={l.lineupId}
-                  type="button"
-                  className="absolute -translate-x-1/2 -translate-y-1/2 group"
-                  style={{ left: `${l.result.x}%`, top: `${l.result.y}%` }}
-                  onMouseEnter={() => setHoveredId(l.lineupId)}
-                  onMouseLeave={() => setHoveredId((cur) => (cur === l.lineupId ? null : cur))}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedId(l.lineupId);
-                  }}
-                  title={l.title}
-                >
-                  <img
-                    src={ICONS[l.type]}
-                    alt=""
-                    draggable={false}
-                    className={`drop-shadow transition-transform ${
-                      isSelected ? "scale-110" : isHovered ? "scale-105" : "scale-100"
-                    }`}
-                    style={{ width: 30, height: 30 }}
-                  />
-
-                  {/* Tooltip preview au hover */}
-                  <div
-                    className="
-                      pointer-events-none opacity-0 group-hover:opacity-100 transition
-                      absolute left-1/2 top-[-10px] -translate-x-1/2 -translate-y-full
-                      w-64 rounded-lg overflow-hidden border border-white/15 bg-black/70 backdrop-blur
-                    "
-                  >
-                    <div className="px-2 py-1 text-xs text-white/90">{l.title}</div>
-                    <img
-                      src={l.previewImg}
-                      alt={`Preview ${l.title}`}
-                      className="w-full h-36 object-cover"
-                      draggable={false}
-                    />
-                    <div className="px-2 py-1 text-[11px] text-white/70">
-                      Clique pour afficher le lancer
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+            {/* Tooltip preview */}
+            <div
+            className="
+                pointer-events-none opacity-0 group-hover:opacity-100 transition
+                absolute left-1/2 top-[-10px] -translate-x-1/2 -translate-y-full
+                z-40 w-64 rounded-lg overflow-hidden border border-white/15 bg-black/70 backdrop-blur
+            "
+            >
+            <div className="px-2 py-1 text-xs text-white/90">{l.title}</div>
+            <img src={l.previewImg} alt="" className="w-full h-36 object-cover" draggable={false} />
+            <div className="px-2 py-1 text-[11px] text-white/70">Clique pour afficher le lancer</div>
+            </div>
+        </button>
+        ))}
           </div>
 
           {/* PANEL DROIT (optionnel : infos sélection) */}

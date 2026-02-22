@@ -24,7 +24,7 @@ export default function GridOverlay({
 
   return (
     <svg
-      className="absolute inset-0 h-full w-full pointer-events-none"
+      className="absolute inset-0 h-full w-full pointer-events-none z-10"
       viewBox="0 0 100 100"
       preserveAspectRatio="none"
     >
