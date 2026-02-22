@@ -46,11 +46,14 @@ export default function Mirage() {
       </p>
 
       {/* MAP */}
-       <div className="mt-5 rounded-xl2 border border-border/60 bg-black/20 shadow-soft overflow-hidden">
+       <div className="flex justify-center p-4 w-full max-w-[900px]">
         <div
           ref={mapRef}
-          className="relative w-full aspect-square bg-black/30"
-        >
+          className="relative aspect-square w-full
+            max-w-[900px]
+            h-auto
+            overflow-hidden rounded-xl2 bg-black/30"
+                >
           <img
             src="/maps/mirage.png"
             alt="Mirage overview"
