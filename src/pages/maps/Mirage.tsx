@@ -46,19 +46,17 @@ export default function Mirage() {
       </p>
 
       {/* MAP */}
-      <div className="mt-5 rounded-xl2 border border-border/60 bg-black/20 p-3">
-        <div className="w-full flex justify-center">
-          <div
-            ref={mapRef}
-            className="relative h-[72vh] aspect-square overflow-hidden rounded-xl2 border border-border/50 bg-black/30"
-          >
-            <img
-              src="/maps/mirage.png"
-              alt="Mirage overview"
-              className="absolute inset-0 h-full w-full object-contain select-none pointer-events-none"
-              draggable={false}
-            />
-
+       <div className="mt-5 rounded-xl2 border border-border/60 bg-black/20 shadow-soft overflow-hidden">
+        <div
+          ref={mapRef}
+          className="relative w-full aspect-square bg-black/30"
+        >
+          <img
+            src="/maps/mirage.png"
+            alt="Mirage overview"
+            className="absolute inset-0 h-full w-full object-contain select-none pointer-events-none"
+            draggable={false}
+          />
             <GridOverlay rows={rows} cols={cols} show={showGrid} />
           </div>
         </div>
@@ -116,6 +114,5 @@ export default function Mirage() {
           </div>
         )}
       </div>
-    </div>
   );
 }
