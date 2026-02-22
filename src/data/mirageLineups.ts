@@ -48,7 +48,7 @@ export const mirageLineups: MirageLineup[] = [
   type: "smoke",
   result: { x: 53.15, y: 69.25 },
   throw: { x: 92.02, y: 59.9 },
-  previewImg: "/previews/mirage/smoke-ct-cpla.png",
+  previewImg: "/previews/mirage/smoke-stairs.png",
 },
 {
   lineupId: "cplajungle-2026-02-22080442",

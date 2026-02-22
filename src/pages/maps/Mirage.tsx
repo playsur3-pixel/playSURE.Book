@@ -419,7 +419,7 @@ export default function Mirage() {
                       ? "top-[-10px] -translate-y-full"
                       : "top-[calc(100%+10px)] translate-y-0"}
                     w-[min(640px,90vw)] rounded-lg overflow-hidden
-                    border border-white/15 bg-black/70 backdrop-blur
+                    border border-white/15 bg-black/95 backdrop-blur
                   `}
                 >
                   <div className="px-2 py-1 text-xs text-white/90">{l.title}</div>
