@@ -78,6 +78,14 @@ export default function Mirage() {
       }
     };
 
+    useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowAdmin(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [konamiSeq]);
@@ -113,64 +121,58 @@ export default function Mirage() {
 
       {/* ADMIN DRAWER (Konami) */}
       {showAdmin && (
-        <div
-          className="fixed inset-0 z-50"
-          onPointerDown={(e) => {
-            // Ferme uniquement si clic sur le fond (pas dans le panneau)
-            if (e.target === e.currentTarget) setShowAdmin(false);
-          }}
+  <div className="fixed inset-0 z-[9999] pointer-events-none">
+    {/* Backdrop visuel seulement (ne capte rien) */}
+    <div className="absolute inset-0 bg-black/60 pointer-events-none" />
+
+    {/* Panel: seul élément interactif */}
+    <div
+      className="absolute right-0 top-0 h-full w-full sm:w-[520px] bg-black/80 backdrop-blur border-l border-white/10 pointer-events-auto"
+    >
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+        <div className="text-sm font-semibold text-white/90">
+          Admin • Placement (Konami)
+        </div>
+
+        <button
+          type="button"
+          className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
+          onClick={() => setShowAdmin(false)}
         >
-          {/* Backdrop (visuel) */}
-          <div className="absolute inset-0 bg-black/60" />
+          Fermer
+        </button>
+      </div>
 
-          {/* Panel */}
-          <div
-            className="absolute right-0 top-0 h-full w-full sm:w-[520px] bg-black/80 backdrop-blur border-l border-white/10"
-            // Stop events très tôt
-            onPointerDownCapture={(e) => e.stopPropagation()}
-            onClickCapture={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-              <div className="text-sm font-semibold text-white/90">Admin • Placement (Konami)</div>
-              <button
-                type="button"
-                className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
-                onClick={() => setShowAdmin(false)}
-              >
-                Fermer
-              </button>
-            </div>
+      <div className="px-4 py-3 flex flex-wrap gap-2 border-b border-white/10">
+        <button
+          type="button"
+          onClick={() => setShowGrid((v) => !v)}
+          className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
+        >
+          {showGrid ? "Masquer grille" : "Afficher grille"}
+        </button>
 
-            <div className="px-4 py-3 flex flex-wrap gap-2 border-b border-white/10">
-              <button
-                type="button"
-                onClick={() => setShowGrid((v) => !v)}
-                className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
-              >
-                {showGrid ? "Masquer grille" : "Afficher grille"}
-              </button>
+        <button
+          type="button"
+          onClick={() => setDebugCoords((v) => !v)}
+          className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
+        >
+          {debugCoords ? "Debug: ON" : "Debug: OFF"}
+        </button>
+      </div>
 
-              <button
-                type="button"
-                onClick={() => setDebugCoords((v) => !v)}
-                className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
-              >
-                {debugCoords ? "Debug: ON" : "Debug: OFF"}
-              </button>
-            </div>
-
-            <div className="h-[calc(100%-96px)] overflow-auto p-4">
-              <PlacementTool
-                mapRef={mapRef}
-                rows={rows}
-                cols={cols}
-                enabledFromParent={debugCoords}
-                fitMode="contain"
-                imageAspect={1}
-                defaultStuffId="new-stuff"
-                defaultTitle="New lineup"
-                defaultType="smoke"
-              />
+      <div className="h-[calc(100%-96px)] overflow-auto p-4">
+        <PlacementTool
+          mapRef={mapRef}
+          rows={rows}
+          cols={cols}
+          enabledFromParent={debugCoords}
+          fitMode="contain"
+          imageAspect={1}
+          defaultStuffId="new-stuff"
+          defaultTitle="New lineup"
+          defaultType="smoke"
+        />
             </div>
           </div>
         </div>
