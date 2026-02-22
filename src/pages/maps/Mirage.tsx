@@ -224,22 +224,44 @@ export default function Mirage() {
               const isSelected = l.lineupId === selectedId;
               const icon = GRENADE_ICONS[l.type as GrenadeType];
 
+              const TOOLTIP_H = 420; // ~ titre + image 360 + padding (ajuste si besoin)
+              const TOOLTIP_MARGIN = 12;
+
+              const [hoveredId, setHoveredId] = useState<string | null>(null);
+              const [tooltipSide, setTooltipSide] = useState<"top" | "bottom">("top");
+              const [brokenPreview, setBrokenPreview] = useState<Record<string, boolean>>({});
+
               return (
-                <button
-                  key={l.lineupId}
-                  type="button"
-                  className="absolute -translate-x-1/2 -translate-y-1/2 group z-20 pointer-events-auto"
-                  style={{ left: `${l.result.x}%`, top: `${l.result.y}%` }}
-                  onPointerDown={(e) => {
-                    e.stopPropagation();
-                    setSelectedId(l.lineupId);
-                  }}
-                  onPointerEnter={() => setHoveredId(l.lineupId)}
-                  onPointerLeave={() =>
-                    setHoveredId((cur) => (cur === l.lineupId ? null : cur))
+              <button
+                key={l.lineupId}
+                type="button"
+                className="absolute -translate-x-1/2 -translate-y-1/2 group z-20 pointer-events-auto"
+                style={{ left: `${l.result.x}%`, top: `${l.result.y}%` }}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  setSelectedId(l.lineupId);
+                }}
+                onPointerEnter={(e) => {
+                  setHoveredId(l.lineupId);
+
+                  const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  const spaceAbove = r.top;
+                  const spaceBelow = window.innerHeight - r.bottom;
+
+                  // si pas assez de place en haut mais assez en bas => bottom
+                  // si pas assez en bas mais assez en haut => top
+                  // sinon fallback: top
+                  if (spaceAbove < TOOLTIP_H + TOOLTIP_MARGIN && spaceBelow >= TOOLTIP_H + TOOLTIP_MARGIN) {
+                    setTooltipSide("bottom");
+                  } else {
+                    setTooltipSide("top");
                   }
-                  title={l.title}
-                >
+                }}
+                onPointerLeave={() => {
+                  setHoveredId((cur) => (cur === l.lineupId ? null : cur));
+                }}
+                title={l.title}
+              >
                 <img
                   src={icon.src}
                   alt=""
@@ -250,23 +272,39 @@ export default function Mirage() {
                   }`}
                 />
 
-                  {/* Hover tooltip preview */}
-                  <div
-                    className="
-                      pointer-events-none opacity-0 group-hover:opacity-100 transition
-                      absolute left-1/2 top-[-10px] -translate-x-1/2 -translate-y-full
-                      w-64 rounded-lg overflow-hidden border border-white/15 bg-black/70 backdrop-blur
-                    "
-                  >
-                    <div className="px-2 py-1 text-xs text-white/90">{l.title}</div>
-                    <img
-                      src={l.previewImg}
-                      alt=""
-                      className="w-full h-[360px] object-cover"
-                      draggable={false}
-                    />
+                {/* Hover tooltip preview */}
+                <div
+                  className={`
+                    pointer-events-none opacity-0 group-hover:opacity-100 transition
+                    absolute left-1/2 -translate-x-1/2 z-50
+                    ${tooltipSide === "top"
+                      ? "top-[-10px] -translate-y-full"
+                      : "top-[calc(100%+10px)] translate-y-0"}
+                    w-[min(640px,90vw)] rounded-lg overflow-hidden
+                    border border-white/15 bg-black/70 backdrop-blur
+                  `}
+                >
+                  <div className="px-2 py-1 text-xs text-white/90">{l.title}</div>
+
+                  <div className="w-full aspect-video bg-black/30">
+                  <img
+                    src={l.previewImg}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    draggable={false}
+                  />
                   </div>
-                </button>
+                  ) : (
+                    <div className="w-full h-[360px] flex items-center justify-center text-xs text-white/60">
+                      Pas de preview
+                    </div>
+                  )
+
+                  <div className="px-2 py-1 text-[11px] text-white/70">
+                    Clique pour afficher le lancer
+                  </div>
+                </div>
+              </button>
               );
             })}
           </div>
