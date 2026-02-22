@@ -8,7 +8,10 @@ import whitelist from "./whitelist.json";
 const COOKIE_NAME = process.env.AUTH_COOKIE_NAME || "playsure_token";
 const JWT_SECRET = process.env.AUTH_JWT_SECRET || "dev-secret";
 
-type UsersDb = Record<string, { username: string; passwordHash: string; role?: string }>;
+type UsersDb = Record<
+  string,
+  { username: string; passwordHash: string; role?: string; createdAt?: string }
+>;
 
 function makeCookie(token: string) {
   const secure = process.env.NODE_ENV === "production" ? "Secure; " : "";
@@ -19,18 +22,32 @@ function norm(s: string) {
   return s.trim().toLowerCase();
 }
 
-function getWhitelist() {
-  const wlUsersRaw = (whitelist as any)?.users;
-  const wlUsers: Array<{ name: string; role?: string }> = Array.isArray(wlUsersRaw)
-    ? wlUsersRaw.map((u: any) => ({ name: String(u?.name ?? "").trim(), role: String(u?.role ?? "").trim() }))
+function readWhitelist(): { allowed: string[]; roles: Record<string, string> } {
+  const usersRaw = (whitelist as any)?.users;
+
+  if (Array.isArray(usersRaw)) {
+    const users = usersRaw
+      .map((u: any) => ({
+        name: String(u?.name ?? "").trim(),
+        role: String(u?.role ?? "player").trim(),
+      }))
+      .filter((u: any) => u.name);
+
+    const allowed = users.map((u: any) => u.name);
+    const roles: Record<string, string> = {};
+    for (const u of users) roles[norm(u.name)] = norm(u.role || "player");
+    return { allowed, roles };
+  }
+
+  // fallback ancien format si besoin
+  const allowed = Array.isArray((whitelist as any)?.allowed)
+    ? (whitelist as any).allowed.map((x: any) => String(x).trim()).filter(Boolean)
     : [];
 
-  const allowed = wlUsers.map((u) => u.name).filter(Boolean);
+  const rolesObj = ((whitelist as any)?.roles ?? {}) as Record<string, any>;
   const roles: Record<string, string> = {};
-  for (const u of wlUsers) {
-    if (!u.name) continue;
-    roles[norm(u.name)] = norm(u.role || "player");
-  }
+  for (const [k, v] of Object.entries(rolesObj)) roles[norm(k)] = norm(String(v));
+  for (const u of allowed) if (!roles[norm(u)]) roles[norm(u)] = "player";
 
   return { allowed, roles };
 }
@@ -47,15 +64,18 @@ export const handler: Handler = async (event) => {
 
     if (!usernameInput || !password) return json(400, { error: "Missing credentials" });
 
-    // ✅ Whitelist via whitelist.users[]
-    const { allowed, roles } = getWhitelist();
+    // ✅ Whitelist
+    const { allowed, roles } = readWhitelist();
     const allowedSet = new Set(allowed.map(norm));
     if (!allowedSet.has(norm(usernameInput))) {
       return json(403, { error: "User not whitelisted" });
     }
 
     const store = getStore("playsure-auth");
-    const users = (await store.get("users.json", { type: "json" }).catch(() => ({}))) as UsersDb;
+
+    // ✅ IMPORTANT : store.get peut renvoyer null sans throw
+    const raw = await store.get("users.json", { type: "json" }).catch(() => null);
+    const users: UsersDb = (raw && typeof raw === "object") ? (raw as UsersDb) : {};
 
     // exact match puis case-insensitive
     let user = users[usernameInput];
@@ -63,6 +83,7 @@ export const handler: Handler = async (event) => {
       const key = Object.keys(users).find((k) => norm(k) === norm(usernameInput));
       if (key) user = users[key];
     }
+
     if (!user) return json(401, { error: "Invalid credentials" });
 
     const ok = await bcrypt.compare(password, user.passwordHash);
@@ -73,11 +94,7 @@ export const handler: Handler = async (event) => {
 
     const token = jwt.sign({ sub: user.username, role }, JWT_SECRET, { expiresIn: "7d" });
 
-    return json(
-      200,
-      { ok: true, username: user.username, role },
-      { "set-cookie": makeCookie(token) }
-    );
+    return json(200, { ok: true, username: user.username, role }, { "set-cookie": makeCookie(token) });
   } catch (e: any) {
     return json(500, { error: e?.message || "Server error" });
   }

@@ -40,7 +40,9 @@ export const handler: Handler = async (event) => {
     const usersKey = "users.json";
 
     // Lecture JSON
-    const users = (await store.get(usersKey, { type: "json" }).catch(() => ({}))) as UsersDb;
+    // const users = (await store.get(usersKey, { type: "json" }).catch(() => ({}))) as UsersDb;
+    const raw = await store.get(usersKey, { type: "json" }).catch(() => null);
+    const users: UsersDb = (raw && typeof raw === "object") ? (raw as UsersDb) : {};
 
     if (users[pseudo]) return json(409, { error: "User already exists" });
 
