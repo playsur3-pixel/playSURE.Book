@@ -3,7 +3,7 @@ import App from "./App";
 import Login from "../pages/Login";
 import Home from "../pages/Home";
 
-import Mirage from "../pages/maps/Miragev1";
+import Mirage from "../pages/maps/Mirage";
 import Dust2 from "../pages/maps/Dust2";
 import Inferno from "../pages/maps/Inferno";
 import Nuke from "../pages/maps/Nuke";
