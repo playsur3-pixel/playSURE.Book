@@ -17,6 +17,17 @@ export default function Mirage() {
   player: "/icons/player.svg",
 } as const;
 
+const GRENADE_TYPES = ["all", "smoke", "flash", "molotov", "he"] as const;
+type GrenadeFilter = (typeof GRENADE_TYPES)[number];
+
+const [grenadeFilter, setGrenadeFilter] = useState<GrenadeFilter>("all");
+
+const visibleLineups =
+  grenadeFilter === "all"
+    ? mirageLineups
+    : mirageLineups.filter((l) => l.type === grenadeFilter);
+
+
   // topbar height (measured)
   const [topbarH, setTopbarH] = useState(72);
 
@@ -110,6 +121,22 @@ export default function Mirage() {
         <div className="h-full w-full flex items-center justify-center">
           {/* clickable + measured area */}
           <div ref={mapRef} className="relative overflow-hidden bg-black/20" style={squareSizeStyle}>
+
+          <div className="absolute right-3 top-3 z-20 pointer-events-auto">
+            <select
+              value={grenadeFilter}
+              onChange={(e) => setGrenadeFilter(e.target.value as GrenadeFilter)}
+              className="rounded-lg border border-white/15 bg-black/60 px-3 py-1.5 text-xs text-white/90 backdrop-blur outline-none"
+              title="Filtrer par grenade"
+            >
+              <option value="all">Toutes</option>
+              <option value="smoke">Smoke</option>
+              <option value="flash">Flash</option>
+              <option value="molotov">Molotov</option>
+              <option value="he">HE</option>
+            </select>
+          </div>
+
             <img
               src="/maps/mirage.png"
               alt="Mirage overview"
@@ -119,7 +146,7 @@ export default function Mirage() {
 
             {/* grid overlay (toggle from admin) */}
             <GridOverlay rows={rows} cols={cols} show={showGrid} />
-            {mirageLineups.map((l) => (
+            {visibleLineups.map((l) => (
               <img
                 key={l.lineupId}
                 src={ICONS[l.type]}
