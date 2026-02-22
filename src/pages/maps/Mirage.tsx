@@ -327,27 +327,32 @@ export default function Mirage() {
 
             {/* Arrow + Player when selected */}
             {selectedLineup && displayThrow && (
-                <>
-              <TrajectoryOverlay
-                id={selectedLineup.lineupId}
-                from={displayThrow}              // IMPORTANT: même point que le player (clamp)
-                to={selectedLineup.result}
-              />
-              <button
-                type="button"
-                className="absolute -translate-x-1/2 -translate-y-1/2 z-20"
-                style={{ left: `${displayThrow.x}%`, top: `${displayThrow.y}%`, width: PLAYER_SIZE, height: PLAYER_SIZE }}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <img
-                  src={PLAYER_ICON.src /* ou ICONS.player.src */}
-                  alt=""
-                  draggable={false}
-                  className="w-full h-full object-contain drop-shadow transition-transform hover:scale-110"
+              <>
+                <TrajectoryOverlay
+                  id={selectedLineup.lineupId}
+                  from={displayThrow}              // IMPORTANT: même point que le player (clamp)
+                  to={selectedLineup.result}
                 />
-              </button>
-            )}
+
+                {/* player */}
+                <button
+                  type="button"
+                  className="absolute -translate-x-1/2 -translate-y-1/2 z-20"
+                  style={{ left: `${displayThrow.x}%`, top: `${displayThrow.y}%` }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                  title="Position de lancer"
+                >
+                  <img
+                    src={PLAYER_ICON.src /* ou ICONS.player.src */}
+                    alt=""
+                    draggable={false}
+                    className="w-full h-full object-contain drop-shadow transition-transform hover:scale-110"
+                    style={{ width: 60, height: 60 }}
+                  />
+                </button>
+                </>
+            )}  
 
             {/* Markers (filtered) */}
             {visibleLineups.map((l) => {
