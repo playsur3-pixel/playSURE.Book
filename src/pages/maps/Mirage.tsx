@@ -272,9 +272,6 @@ export default function Mirage() {
                       className="w-full h-36 object-cover"
                       draggable={false}
                     />
-                    <div className="px-2 py-1 text-[11px] text-white/70">
-                      Clique pour afficher le lancer
-                    </div>
                   </div>
                 </button>
               );

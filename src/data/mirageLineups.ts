@@ -21,7 +21,7 @@ export const mirageLineups: MirageLineup[] = [
   type: "smoke",
   result: { x: 37.23, y: 46.22 },
   throw: { x: 98.58, y: 30.73 },
-  previewImg: "/previews/mirage/smokewindow.jpg",
+  previewImg: "/previews/mirage/smoke-window.jpg",
 },
 {
   lineupId: "smokeshort-2026-02-22080235",
@@ -30,7 +30,7 @@ export const mirageLineups: MirageLineup[] = [
   type: "smoke",
   result: { x: 62.32, y: 41.43 },
   throw: { x: 98.58, y: 30.73 },
-  previewImg: "/previews/mirage/smokeshort.jpg",
+  previewImg: "/previews/mirage/smoke-short.jpg",
 },
 {
   lineupId: "cplact-2026-02-22080315",
@@ -39,7 +39,7 @@ export const mirageLineups: MirageLineup[] = [
   type: "smoke",
   result: { x: 43.24, y: 88.96 },
   throw: { x: 90.22, y: 55.28 },
-  previewImg: "/previews/mirage/cplact.jpg",
+  previewImg: "/previews/mirage/smoke-ct.jpg",
 },
 {
   lineupId: "cplastairs-2026-02-22080412",
@@ -48,7 +48,7 @@ export const mirageLineups: MirageLineup[] = [
   type: "smoke",
   result: { x: 53.15, y: 69.25 },
   throw: { x: 92.02, y: 59.9 },
-  previewImg: "/previews/mirage/cplastairs.jpg",
+  previewImg: "/previews/mirage/smoke-stairs.jpg",
 },
 {
   lineupId: "cplajungle-2026-02-22080442",
@@ -57,7 +57,7 @@ export const mirageLineups: MirageLineup[] = [
   type: "smoke",
   result: { x: 48.42, y: 69.58 },
   throw: { x: 84.13, y: 67.78 },
-  previewImg: "/previews/mirage/cplajungle.jpg",
+  previewImg: "/previews/mirage/smoke-jungle.jpg",
 },
 {
   lineupId: "connect-2026-02-22080616",
@@ -93,7 +93,7 @@ export const mirageLineups: MirageLineup[] = [
   type: "molotov",
   result: { x: 60.62, y: 84.49 },
   throw: { x: 64.82, y: 84.6 },
-  previewImg: "/previews/mirage/molodefapalace.jpg",
+  previewImg: "/previews/mirage/molotov-defaultAPalace.jpg",
 },
 {
   lineupId: "moloputerampa-2026-02-22080831",
@@ -102,7 +102,7 @@ export const mirageLineups: MirageLineup[] = [
   type: "molotov",
   result: { x: 67.85, y: 71.54 },
   throw: { x: 72.05, y: 72.12 },
-  previewImg: "/previews/mirage/moloputerampa.jpg",
+  previewImg: "/previews/mirage/molotov-puteRampA.jpg",
 },
 {
   lineupId: "molotripple-2026-02-22080921",
