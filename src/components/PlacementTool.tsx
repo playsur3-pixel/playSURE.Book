@@ -1,10 +1,37 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { pctToGrid } from "../components/GridOverlay";
+import { pctToGrid } from "./GridOverlay";
 
 type Point = { x: number; y: number; grid: string };
 
-function clampPct(v: number) {
-  return Math.min(100, Math.max(0, v));
+function clamp(v: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, v));
+}
+
+/**
+ * Calcule le rectangle (en pixels, relatif au conteneur) occupé par l'image
+ * quand elle est affichée en object-contain.
+ *
+ * - containerW/H : taille du conteneur
+ * - imageAspect : width/height de l'image (ex: 1 pour 1024x1024)
+ */
+function getContainRect(containerW: number, containerH: number, imageAspect: number) {
+  const containerAspect = containerW / containerH;
+
+  // image plus "large" que le conteneur -> on fit en largeur
+  if (imageAspect > containerAspect) {
+    const w = containerW;
+    const h = w / imageAspect;
+    const x = 0;
+    const y = (containerH - h) / 2;
+    return { x, y, w, h };
+  }
+
+  // image plus "haute" -> on fit en hauteur
+  const h = containerH;
+  const w = h * imageAspect;
+  const y = 0;
+  const x = (containerW - w) / 2;
+  return { x, y, w, h };
 }
 
 export default function PlacementTool({
@@ -14,8 +41,9 @@ export default function PlacementTool({
   defaultType = "smoke",
   defaultStuffId = "new-stuff",
   defaultTitle = "New lineup",
-  onMarkersChange,
   enabledFromParent,
+  fitMode = "contain",
+  imageAspect = 1,
 }: {
   mapRef: React.RefObject<HTMLDivElement>;
   rows: number;
@@ -23,8 +51,9 @@ export default function PlacementTool({
   defaultType?: "smoke" | "flash" | "molotov" | "he";
   defaultStuffId?: string;
   defaultTitle?: string;
-  onMarkersChange?: (throwP: Point | null, resultP: Point | null) => void;
-  enabledFromParent?: boolean; // si false => aucun clic pris en compte
+  enabledFromParent?: boolean;
+  fitMode?: "contain"; // pour l’instant on gère contain (ton cas)
+  imageAspect?: number; // width/height (1 pour 1024x1024)
 }) {
   const storageKey = "playsure:miragePlacement";
 
@@ -36,13 +65,12 @@ export default function PlacementTool({
   const [throwP, setThrowP] = useState<Point | null>(null);
   const [resultP, setResultP] = useState<Point | null>(null);
 
-  // Restore from localStorage
+  // Restore
   useEffect(() => {
     try {
       const raw = localStorage.getItem(storageKey);
       if (!raw) return;
       const parsed = JSON.parse(raw);
-
       setEnabled(parsed.enabled ?? true);
       setType(parsed.type ?? defaultType);
       setStuffId(parsed.stuffId ?? defaultStuffId);
@@ -55,7 +83,7 @@ export default function PlacementTool({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist to localStorage
+  // Persist
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -67,36 +95,49 @@ export default function PlacementTool({
     }
   }, [enabled, type, stuffId, title, throwP, resultP]);
 
-  // Notify parent (optional)
-  useEffect(() => {
-    onMarkersChange?.(throwP, resultP);
-  }, [throwP, resultP, onMarkersChange]);
-
-  // Click handler on map (native event, so it works even outside React tree)
+  // Click handler
   useEffect(() => {
     const el = mapRef.current;
     if (!el) return;
 
     const handler = (ev: MouseEvent) => {
-      // local toggle
       if (!enabled) return;
-      // global toggle (Debug OFF)
       if (enabledFromParent === false) return;
-
-      // left click only
       if (ev.button !== 0) return;
 
       const rect = el.getBoundingClientRect();
-      const xPct = clampPct(((ev.clientX - rect.left) / rect.width) * 100);
-      const yPct = clampPct(((ev.clientY - rect.top) / rect.height) * 100);
+      const localX = ev.clientX - rect.left;
+      const localY = ev.clientY - rect.top;
 
-      const x = +xPct.toFixed(2);
-      const y = +yPct.toFixed(2);
-      const grid = pctToGrid(xPct, yPct, rows, cols);
+      // Calcul de la zone "image" réelle (contain)
+      let imgRect = { x: 0, y: 0, w: rect.width, h: rect.height };
+
+      if (fitMode === "contain") {
+        imgRect = getContainRect(rect.width, rect.height, imageAspect);
+      }
+
+      // Si tu cliques hors de l'image (dans les bandes noires), on ignore
+      const inside =
+        localX >= imgRect.x &&
+        localX <= imgRect.x + imgRect.w &&
+        localY >= imgRect.y &&
+        localY <= imgRect.y + imgRect.h;
+
+      if (!inside) {
+        console.log("Click ignored (outside image)");
+        return;
+      }
+
+      // % relatif à l'image (pas au conteneur)
+      const xPct = ((localX - imgRect.x) / imgRect.w) * 100;
+      const yPct = ((localY - imgRect.y) / imgRect.h) * 100;
+
+      const x = +clamp(xPct, 0, 100).toFixed(2);
+      const y = +clamp(yPct, 0, 100).toFixed(2);
+      const grid = pctToGrid(x, y, rows, cols);
 
       const point: Point = { x, y, grid };
 
-      // ALT = throw, else result
       if (ev.altKey) {
         setThrowP(point);
         console.log("Throw (ALT+click):", point);
@@ -108,9 +149,8 @@ export default function PlacementTool({
 
     el.addEventListener("click", handler);
     return () => el.removeEventListener("click", handler);
-  }, [enabled, enabledFromParent, mapRef, rows, cols]);
+  }, [enabled, enabledFromParent, mapRef, rows, cols, fitMode, imageAspect]);
 
-  // Generate a lineupId each time stuffId changes (timestamped)
   const lineupId = useMemo(() => {
     const base = (stuffId.trim() || "new-stuff")
       .toLowerCase()
@@ -122,7 +162,6 @@ export default function PlacementTool({
 
   const snippet = useMemo(() => {
     if (!throwP || !resultP) return null;
-
     const safeStuffId = (stuffId || "new-stuff").trim();
     const safeTitle = (title || "New lineup").trim();
 
@@ -141,9 +180,9 @@ export default function PlacementTool({
     if (!snippet) return;
     try {
       await navigator.clipboard.writeText(snippet);
-      console.log("✅ Snippet copied to clipboard");
+      console.log("✅ Snippet copied");
     } catch {
-      console.log("❌ Clipboard blocked, copy manually from the panel.");
+      console.log("❌ Clipboard blocked, copy manually.");
     }
   }
 
@@ -160,18 +199,21 @@ export default function PlacementTool({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="mt-3 space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="text-sm font-semibold">Mode placement</div>
           <div className="text-xs text-muted/80">
-            ALT+clic = lancer • clic = arrivée • {cols}×{rows}
+            ALT+clic = lancer • clic = arrivée • {cols}×{rows} • fit:{fitMode}
           </div>
           {enabledFromParent === false && (
             <div className="mt-1 text-[11px] text-amber-300/90">
               Debug OFF : les clics sur la map sont ignorés.
             </div>
           )}
+          <div className="mt-1 text-[11px] text-muted/70">
+            (Les clics dans les bandes noires sont ignorés)
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -201,14 +243,14 @@ export default function PlacementTool({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <label className="grid gap-1">
           <span className="text-xs text-muted">stuffId</span>
           <input
             value={stuffId}
             onChange={(e) => setStuffId(e.target.value)}
             className="rounded-lg border border-border/60 bg-black/20 px-2 py-1.5 text-sm outline-none"
-            placeholder="mid-window"
+            placeholder="smokewindow"
           />
         </label>
 
@@ -237,7 +279,7 @@ export default function PlacementTool({
         </label>
       </div>
 
-      <div className="grid grid-cols-1 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div className="rounded-lg border border-border/60 bg-black/20 p-2">
           <div className="text-xs text-muted">Throw (ALT+clic)</div>
           <div className="text-sm">{throwP ? `${throwP.grid} • x:${throwP.x} y:${throwP.y}` : "—"}</div>
