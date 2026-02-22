@@ -188,10 +188,6 @@ export default function Mirage() {
       return { x: (xPx / w) * 100, y: (yPx / h) * 100 };
     };
 
-      const displayThrow = selectedLineup
-      ? clampPctPoint(selectedLineup.throw, mapSize.w, mapSize.h, PLAYER_SAFE_HALF)
-      : null;
-
   return (
     <>
       {/* MAP full-fit under topbar */}
