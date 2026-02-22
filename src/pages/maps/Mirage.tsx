@@ -1,12 +1,21 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import GridOverlay from "../../components/GridOverlay";
 import PlacementTool from "../../components/PlacementTool";
+import { mirageLineups } from "../../data/mirageLineups";
 
 export default function Mirage() {
   const cols = 26;
   const rows = 20;
 
   const mapRef = useRef<HTMLDivElement>(null);
+
+  const ICONS = {
+  smoke: "/icons/ct-smoke.svg",
+  flash: "/icons/flash.svg",
+  molotov: "/icons/molotov.svg",
+  he: "/icons/he.svg",
+  player: "/icons/player.svg",
+} as const;
 
   // topbar height (measured)
   const [topbarH, setTopbarH] = useState(72);
@@ -110,6 +119,16 @@ export default function Mirage() {
 
             {/* grid overlay (toggle from admin) */}
             <GridOverlay rows={rows} cols={cols} show={showGrid} />
+            {mirageLineups.map((l) => (
+              <img
+                key={l.lineupId}
+                src={ICONS[l.type]}
+                alt=""
+                draggable={false}
+                className="absolute -translate-x-1/2 -translate-y-1/2 drop-shadow"
+                style={{ left: `${l.result.x}%`, top: `${l.result.y}%`, width: 30, height: 30 }}
+              />
+            ))}
           </div>
         </div>
       </div>
