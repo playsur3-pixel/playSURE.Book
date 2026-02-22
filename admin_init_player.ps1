@@ -21,15 +21,19 @@ $uri = "$site/.netlify/functions/admin_init_player"
 # 4) User à créer
 $pseudo   = "HYPERR"
 $password = "p.Crew.RoL"
+$role     = "player"   # coach | player | director
+
 
 $body = @{
   pseudo   = $pseudo
   password = $password
+  role     = $role
 } | ConvertTo-Json -Depth 5
 
 try {
   Write-Host "POST $uri"
   Write-Host "pseudo: $pseudo"
+  Write-Host "role: $role"
 
   $res = Invoke-RestMethod -Method Post -Uri $uri `
     -Headers @{ "x-admin-secret" = $admin } `
