@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { pctToGrid } from "./GridOverlay";
 
 type Point = { x: number; y: number; grid: string };
 
@@ -7,17 +6,18 @@ function clamp(v: number, min: number, max: number) {
   return Math.min(max, Math.max(min, v));
 }
 
-/**
- * Calcule le rectangle (en pixels, relatif au conteneur) occupé par l'image
- * quand elle est affichée en object-contain.
- *
- * - containerW/H : taille du conteneur
- * - imageAspect : width/height de l'image (ex: 1 pour 1024x1024)
- */
+function pctToGrid(xPct: number, yPct: number, rows: number, cols: number) {
+  const col = Math.min(cols - 1, Math.max(0, Math.floor((xPct / 100) * cols)));
+  const row = Math.min(rows - 1, Math.max(0, Math.floor((yPct / 100) * rows)));
+  const letter = String.fromCharCode(65 + col);
+  return `${letter}${row + 1}`;
+}
+
+// object-contain content rect
 function getContainRect(containerW: number, containerH: number, imageAspect: number) {
   const containerAspect = containerW / containerH;
 
-  // image plus "large" que le conteneur -> on fit en largeur
+  // image "wider" than container -> fit width
   if (imageAspect > containerAspect) {
     const w = containerW;
     const h = w / imageAspect;
@@ -26,7 +26,7 @@ function getContainRect(containerW: number, containerH: number, imageAspect: num
     return { x, y, w, h };
   }
 
-  // image plus "haute" -> on fit en hauteur
+  // fit height
   const h = containerH;
   const w = h * imageAspect;
   const y = 0;
@@ -41,7 +41,7 @@ export default function PlacementTool({
   defaultType = "smoke",
   defaultStuffId = "new-stuff",
   defaultTitle = "New lineup",
-  enabledFromParent,
+  enabledFromParent = true,
   fitMode = "contain",
   imageAspect = 1,
 }: {
@@ -52,10 +52,10 @@ export default function PlacementTool({
   defaultStuffId?: string;
   defaultTitle?: string;
   enabledFromParent?: boolean;
-  fitMode?: "contain"; // pour l’instant on gère contain (ton cas)
-  imageAspect?: number; // width/height (1 pour 1024x1024)
+  fitMode?: "contain";
+  imageAspect?: number; // width/height
 }) {
-  const storageKey = "playsure:miragePlacement";
+  const storageKey = "playsure:placementTool:v1";
 
   const [enabled, setEnabled] = useState(true);
   const [type, setType] = useState<"smoke" | "flash" | "molotov" | "he">(defaultType);
@@ -65,7 +65,7 @@ export default function PlacementTool({
   const [throwP, setThrowP] = useState<Point | null>(null);
   const [resultP, setResultP] = useState<Point | null>(null);
 
-  // Restore
+  // Restore localStorage
   useEffect(() => {
     try {
       const raw = localStorage.getItem(storageKey);
@@ -83,7 +83,7 @@ export default function PlacementTool({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist
+  // Persist localStorage
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -95,40 +95,33 @@ export default function PlacementTool({
     }
   }, [enabled, type, stuffId, title, throwP, resultP]);
 
-  // Click handler
+  // Attach event listener (pointerdown is more reliable than click)
   useEffect(() => {
     const el = mapRef.current;
     if (!el) return;
 
-    const handler = (ev: MouseEvent) => {
+    const handler = (ev: PointerEvent) => {
       if (!enabled) return;
-      if (enabledFromParent === false) return;
-      if (ev.button !== 0) return;
+      if (!enabledFromParent) return;
+      if (ev.button !== 0) return; // left button only
 
       const rect = el.getBoundingClientRect();
       const localX = ev.clientX - rect.left;
       const localY = ev.clientY - rect.top;
 
-      // Calcul de la zone "image" réelle (contain)
       let imgRect = { x: 0, y: 0, w: rect.width, h: rect.height };
-
       if (fitMode === "contain") {
         imgRect = getContainRect(rect.width, rect.height, imageAspect);
       }
 
-      // Si tu cliques hors de l'image (dans les bandes noires), on ignore
       const inside =
         localX >= imgRect.x &&
         localX <= imgRect.x + imgRect.w &&
         localY >= imgRect.y &&
         localY <= imgRect.y + imgRect.h;
 
-      if (!inside) {
-        console.log("Click ignored (outside image)");
-        return;
-      }
+      if (!inside) return; // click in letterbox area
 
-      // % relatif à l'image (pas au conteneur)
       const xPct = ((localX - imgRect.x) / imgRect.w) * 100;
       const yPct = ((localY - imgRect.y) / imgRect.h) * 100;
 
@@ -138,18 +131,13 @@ export default function PlacementTool({
 
       const point: Point = { x, y, grid };
 
-      if (ev.altKey) {
-        setThrowP(point);
-        console.log("Throw (ALT+click):", point);
-      } else {
-        setResultP(point);
-        console.log("Result (click):", point);
-      }
+      if (ev.altKey) setThrowP(point);
+      else setResultP(point);
     };
 
-    el.addEventListener("click", handler);
-    return () => el.removeEventListener("click", handler);
-  }, [enabled, enabledFromParent, mapRef, rows, cols, fitMode, imageAspect]);
+    el.addEventListener("pointerdown", handler);
+    return () => el.removeEventListener("pointerdown", handler);
+  }, [mapRef, enabled, enabledFromParent, rows, cols, fitMode, imageAspect]);
 
   const lineupId = useMemo(() => {
     const base = (stuffId.trim() || "new-stuff")
@@ -162,6 +150,7 @@ export default function PlacementTool({
 
   const snippet = useMemo(() => {
     if (!throwP || !resultP) return null;
+
     const safeStuffId = (stuffId || "new-stuff").trim();
     const safeTitle = (title || "New lineup").trim();
 
@@ -180,9 +169,8 @@ export default function PlacementTool({
     if (!snippet) return;
     try {
       await navigator.clipboard.writeText(snippet);
-      console.log("✅ Snippet copied");
     } catch {
-      console.log("❌ Clipboard blocked, copy manually.");
+      // clipboard can be blocked; user can copy manually
     }
   }
 
@@ -193,83 +181,80 @@ export default function PlacementTool({
 
   function clearAll() {
     resetPoints();
+    setType(defaultType);
     setStuffId(defaultStuffId);
     setTitle(defaultTitle);
-    setType(defaultType);
   }
 
   return (
-    <div className="mt-3 space-y-3">
+    <div className="space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <div className="text-sm font-semibold">Mode placement</div>
-          <div className="text-xs text-muted/80">
+          <div className="text-sm font-semibold text-white/90">Mode placement</div>
+          <div className="text-xs text-white/60">
             ALT+clic = lancer • clic = arrivée • {cols}×{rows} • fit:{fitMode}
           </div>
-          {enabledFromParent === false && (
+          {!enabledFromParent && (
             <div className="mt-1 text-[11px] text-amber-300/90">
-              Debug OFF : les clics sur la map sont ignorés.
+              Debug OFF : clics ignorés.
             </div>
           )}
-          <div className="mt-1 text-[11px] text-muted/70">
-            (Les clics dans les bandes noires sont ignorés)
-          </div>
         </div>
 
         <div className="flex items-center gap-2">
           <button
-            className="rounded-lg border border-border/60 bg-card/40 px-3 py-1.5 text-xs hover:bg-card/60 transition"
-            onClick={() => setEnabled((v) => !v)}
             type="button"
+            onClick={() => setEnabled((v) => !v)}
+            className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
           >
-            {enabled ? "Désactiver" : "Activer"}
+            {enabled ? "Activer" : "Activer"}
           </button>
 
           <button
-            className="rounded-lg border border-border/60 bg-card/40 px-3 py-1.5 text-xs hover:bg-card/60 transition"
-            onClick={resetPoints}
             type="button"
+            onClick={resetPoints}
+            className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
           >
             Reset
           </button>
 
           <button
-            className="rounded-lg border border-border/60 bg-card/40 px-3 py-1.5 text-xs hover:bg-card/60 transition"
-            onClick={clearAll}
             type="button"
+            onClick={clearAll}
+            className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
           >
             Clear
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2">
         <label className="grid gap-1">
-          <span className="text-xs text-muted">stuffId</span>
+          <span className="text-xs text-white/60">stuffId</span>
           <input
             value={stuffId}
             onChange={(e) => setStuffId(e.target.value)}
-            className="rounded-lg border border-border/60 bg-black/20 px-2 py-1.5 text-sm outline-none"
+            className="rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-sm text-white/90 outline-none"
             placeholder="smokewindow"
           />
         </label>
 
         <label className="grid gap-1">
-          <span className="text-xs text-muted">Titre</span>
+          <span className="text-xs text-white/60">Titre</span>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="rounded-lg border border-border/60 bg-black/20 px-2 py-1.5 text-sm outline-none"
+            className="rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-sm text-white/90 outline-none"
             placeholder="Smoke Window"
           />
         </label>
 
         <label className="grid gap-1">
-          <span className="text-xs text-muted">Type</span>
+          <span className="text-xs text-white/60">Type</span>
           <select
             value={type}
             onChange={(e) => setType(e.target.value as any)}
-            className="rounded-lg border border-border/60 bg-black/20 px-2 py-1.5 text-sm outline-none"
+            className="rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-sm text-white/90 outline-none"
           >
             <option value="smoke">smoke</option>
             <option value="flash">flash</option>
@@ -280,25 +265,29 @@ export default function PlacementTool({
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <div className="rounded-lg border border-border/60 bg-black/20 p-2">
-          <div className="text-xs text-muted">Throw (ALT+clic)</div>
-          <div className="text-sm">{throwP ? `${throwP.grid} • x:${throwP.x} y:${throwP.y}` : "—"}</div>
+        <div className="rounded-lg border border-white/15 bg-black/25 p-2">
+          <div className="text-xs text-white/60">Throw (ALT+clic)</div>
+          <div className="text-sm text-white/90">
+            {throwP ? `${throwP.grid} • x:${throwP.x} y:${throwP.y}` : "—"}
+          </div>
         </div>
 
-        <div className="rounded-lg border border-border/60 bg-black/20 p-2">
-          <div className="text-xs text-muted">Result (clic)</div>
-          <div className="text-sm">{resultP ? `${resultP.grid} • x:${resultP.x} y:${resultP.y}` : "—"}</div>
+        <div className="rounded-lg border border-white/15 bg-black/25 p-2">
+          <div className="text-xs text-white/60">Result (clic)</div>
+          <div className="text-sm text-white/90">
+            {resultP ? `${resultP.grid} • x:${resultP.x} y:${resultP.y}` : "—"}
+          </div>
         </div>
       </div>
 
-      <div className="rounded-lg border border-border/60 bg-black/20 p-2">
+      <div className="rounded-lg border border-white/15 bg-black/25 p-2">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-xs text-muted">Snippet à coller dans ton fichier data</div>
+          <div className="text-xs text-white/60">Snippet à coller</div>
           <button
             type="button"
             onClick={copySnippet}
             disabled={!snippet}
-            className="rounded-lg border border-border/60 bg-card/40 px-3 py-1.5 text-xs hover:bg-card/60 transition disabled:opacity-50"
+            className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition disabled:opacity-50"
           >
             Copier
           </button>

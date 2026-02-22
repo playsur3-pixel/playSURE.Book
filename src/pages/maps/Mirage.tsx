@@ -8,15 +8,14 @@ export default function Mirage() {
 
   const mapRef = useRef<HTMLDivElement>(null);
 
-  // Mesure topbar (pour coller la map juste dessous)
+  // topbar height (measured)
   const [topbarH, setTopbarH] = useState(72);
 
   // Admin (Konami)
   const [showAdmin, setShowAdmin] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
-  const [debugCoords, setDebugCoords] = useState(false);
+  const [debugCoords, setDebugCoords] = useState(true);
 
-  // Konami: ↑ ↑ ↓ ↓ ← → ← →
   const konamiSeq = useMemo(
     () => [
       "ArrowUp",
@@ -31,7 +30,7 @@ export default function Mirage() {
     []
   );
 
-  // Empêche le scroll sur cette page (le drawer scrolle à l'intérieur)
+  // 1) Disable page scroll completely on this page
   useEffect(() => {
     const prevHtml = document.documentElement.style.overflow;
     const prevBody = document.body.style.overflow;
@@ -43,7 +42,7 @@ export default function Mirage() {
     };
   }, []);
 
-  // Mesure dynamique de la topbar
+  // 2) Measure topbar height automatically (header or data-topbar)
   useLayoutEffect(() => {
     const header =
       (document.querySelector("header") as HTMLElement | null) ||
@@ -59,11 +58,18 @@ export default function Mirage() {
     return () => ro.disconnect();
   }, []);
 
-  // Konami listener
+  // 3) Konami + ESC
   useEffect(() => {
     let buffer: string[] = [];
 
     const onKeyDown = (e: KeyboardEvent) => {
+      // close with ESC
+      if (e.key === "Escape") {
+        setShowAdmin(false);
+        return;
+      }
+
+      // ignore when typing
       const el = e.target as HTMLElement | null;
       const tag = el?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || el?.isContentEditable) return;
@@ -78,19 +84,11 @@ export default function Mirage() {
       }
     };
 
-    useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setShowAdmin(false);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
-
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [konamiSeq]);
 
-  // Taille carré stable: min(largeur écran, hauteur dispo sous topbar)
+  // Stable square size: min(viewport width, available height below topbar)
   const squareSizeStyle = {
     width: `min(100vw, calc(100dvh - ${topbarH}px))`,
     height: `min(100vw, calc(100dvh - ${topbarH}px))`,
@@ -98,15 +96,11 @@ export default function Mirage() {
 
   return (
     <>
-      {/* MAP AREA full-fit sous la topbar */}
+      {/* MAP full-fit under topbar */}
       <div className="fixed left-0 right-0 bottom-0 z-0" style={{ top: `${topbarH}px` }}>
         <div className="h-full w-full flex items-center justify-center">
-          {/* ✅ Zone cliquable stable (mapRef) */}
-          <div
-            ref={mapRef}
-            className="relative overflow-hidden bg-black/20"
-            style={squareSizeStyle}
-          >
+          {/* clickable + measured area */}
+          <div ref={mapRef} className="relative overflow-hidden bg-black/20" style={squareSizeStyle}>
             <img
               src="/maps/mirage.png"
               alt="Mirage overview"
@@ -114,65 +108,68 @@ export default function Mirage() {
               draggable={false}
             />
 
+            {/* grid overlay (toggle from admin) */}
             <GridOverlay rows={rows} cols={cols} show={showGrid} />
           </div>
         </div>
       </div>
 
-      {/* ADMIN DRAWER (Konami) */}
+      {/* ADMIN DRAWER (Konami)
+          IMPORTANT:
+          - overlay is pointer-events-none (clicks pass through to map)
+          - panel is pointer-events-auto (panel clickable)
+      */}
       {showAdmin && (
-  <div className="fixed inset-0 z-[9999] pointer-events-none">
-    {/* Backdrop visuel seulement (ne capte rien) */}
-    <div className="absolute inset-0 bg-black/60 pointer-events-none" />
+        <div className="fixed inset-0 z-[9999] pointer-events-none">
+          {/* visual backdrop only */}
+          <div className="absolute inset-0 bg-black/60 pointer-events-none" />
 
-    {/* Panel: seul élément interactif */}
-    <div
-      className="absolute right-0 top-0 h-full w-full sm:w-[520px] bg-black/80 backdrop-blur border-l border-white/10 pointer-events-auto"
-    >
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-        <div className="text-sm font-semibold text-white/90">
-          Admin • Placement (Konami)
-        </div>
+          {/* panel */}
+          <div className="absolute right-0 top-0 h-full w-full sm:w-[520px] bg-black/85 backdrop-blur border-l border-white/10 pointer-events-auto">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+              <div className="text-sm font-semibold text-white/90">Admin • Placement (Konami)</div>
+              <button
+                type="button"
+                className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
+                onClick={() => setShowAdmin(false)}
+              >
+                Fermer
+              </button>
+            </div>
 
-        <button
-          type="button"
-          className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
-          onClick={() => setShowAdmin(false)}
-        >
-          Fermer
-        </button>
-      </div>
+            <div className="px-4 py-3 flex flex-wrap gap-2 border-b border-white/10">
+              <button
+                type="button"
+                onClick={() => setShowGrid((v) => !v)}
+                className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
+              >
+                {showGrid ? "Masquer grille" : "Afficher grille"}
+              </button>
 
-      <div className="px-4 py-3 flex flex-wrap gap-2 border-b border-white/10">
-        <button
-          type="button"
-          onClick={() => setShowGrid((v) => !v)}
-          className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
-        >
-          {showGrid ? "Masquer grille" : "Afficher grille"}
-        </button>
+              <button
+                type="button"
+                onClick={() => setDebugCoords((v) => !v)}
+                className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
+              >
+                {debugCoords ? "Debug: ON" : "Debug: OFF"}
+              </button>
+            </div>
 
-        <button
-          type="button"
-          onClick={() => setDebugCoords((v) => !v)}
-          className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
-        >
-          {debugCoords ? "Debug: ON" : "Debug: OFF"}
-        </button>
-      </div>
-
-      <div className="h-[calc(100%-96px)] overflow-auto p-4">
-        <PlacementTool
-          mapRef={mapRef}
-          rows={rows}
-          cols={cols}
-          enabledFromParent={debugCoords}
-          fitMode="contain"
-          imageAspect={1}
-          defaultStuffId="new-stuff"
-          defaultTitle="New lineup"
-          defaultType="smoke"
-        />
+            <div className="h-[calc(100%-96px)] overflow-auto p-4">
+              <PlacementTool
+                mapRef={mapRef}
+                rows={rows}
+                cols={cols}
+                enabledFromParent={debugCoords}
+                fitMode="contain"
+                imageAspect={1}
+                defaultStuffId="new-stuff"
+                defaultTitle="New lineup"
+                defaultType="smoke"
+              />
+              <div className="mt-3 text-[11px] text-white/60">
+                Astuce: Konami ↑↑↓↓←→←→ pour ouvrir/fermer • ESC pour fermer.
+              </div>
             </div>
           </div>
         </div>
