@@ -2,14 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import GridOverlay from "../../components/GridOverlay";
 import PlacementTool from "../../components/PlacementTool";
 
-useEffect(() => {
-  const prev = document.body.style.overflow;
-  document.body.style.overflow = "hidden";
-  return () => {
-    document.body.style.overflow = prev;
-  };
-}, []);
-
 export default function Mirage() {
   const cols = 26;
   const rows = 20;
