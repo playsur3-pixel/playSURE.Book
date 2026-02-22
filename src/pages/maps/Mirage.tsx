@@ -43,11 +43,10 @@ export default function Mirage() {
     <div className="w-full">
       {/* Container sans scroll */}
       <div
-        className="mx-auto w-full max-w-6xl px-4"
-        style={{
-          // 100dvh - topbar - padding vertical (à ajuster si besoin)
-          height: `calc(100dvh - ${TOPBAR_H}px)`,
-        }}
+        className="mx-auto w-full max-w-6xl px-4 pt-0 mt-0 overflow-hidden"
+        style={{ height: `calc(100dvh - ${TOPBAR_H}px)`
+        }
+      }
       >
         {/* Carte unique */}
         <div className="h-full rounded-xl2 border border-border bg-card/40 shadow-soft backdrop-blur overflow-hidden">
