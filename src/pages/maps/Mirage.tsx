@@ -36,7 +36,101 @@ function ArrowOverlay({
     </svg>
   );
 }
+function TrajectoryOverlay({
+  id,
+  from,
+  to,
+}: {
+  id: string;
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+}) {
+  // Courbe quadratique (bezier) avec un "bend" perpendiculaire
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const len = Math.hypot(dx, dy) || 1;
 
+  const mx = (from.x + to.x) / 2;
+  const my = (from.y + to.y) / 2;
+
+  // vecteur normalisé perpendiculaire (pour la courbure)
+  const nx = -dy / len;
+  const ny = dx / len;
+
+  // intensité de courbure (adaptative)
+  const bend = Math.min(14, Math.max(7, len * 0.18));
+  const cx = mx + nx * bend;
+  const cy = my + ny * bend;
+
+  const gradId = `traj-grad-${id}`;
+  const arrowId = `traj-arrow-${id}`;
+  const glowId = `traj-glow-${id}`;
+
+  return (
+    <svg
+      className="absolute inset-0 h-full w-full pointer-events-none z-10"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+    >
+      <defs>
+        {/* Glow léger */}
+        <filter id={glowId} x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="0.8" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+
+        {/* Dégradé orange */}
+        <linearGradient
+          id={gradId}
+          gradientUnits="userSpaceOnUse"
+          x1={from.x}
+          y1={from.y}
+          x2={to.x}
+          y2={to.y}
+        >
+          <stop offset="0%" stopColor="rgba(255,165,0,0.25)" />
+          <stop offset="60%" stopColor="rgba(255,165,0,0.85)" />
+          <stop offset="100%" stopColor="rgba(255,165,0,0.95)" />
+        </linearGradient>
+
+        {/* Pointe de flèche */}
+        <marker
+          id={arrowId}
+          markerWidth="6"
+          markerHeight="6"
+          refX="5.2"
+          refY="3"
+          orient="auto"
+        >
+          <path d="M0,0 L6,3 L0,6 Z" fill="rgba(255,165,0,0.95)" />
+        </marker>
+      </defs>
+
+      {/* Trait principal (fin) */}
+      <path
+        d={`M ${from.x} ${from.y} Q ${cx} ${cy} ${to.x} ${to.y}`}
+        fill="none"
+        stroke={`url(#${gradId})`}
+        strokeWidth="1.0"
+        strokeLinecap="round"
+        markerEnd={`url(#${arrowId})`}
+        filter={`url(#${glowId})`}
+      />
+
+      {/* Petit "highlight" pour donner du style */}
+      <path
+        d={`M ${from.x} ${from.y} Q ${cx} ${cy} ${to.x} ${to.y}`}
+        fill="none"
+        stroke="rgba(255,220,120,0.35)"
+        strokeWidth="0.45"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
 export default function Mirage() {
   const cols = 26;
   const rows = 20;
@@ -233,6 +327,12 @@ export default function Mirage() {
 
             {/* Arrow + Player when selected */}
             {selectedLineup && displayThrow && (
+                <>
+              <TrajectoryOverlay
+                id={selectedLineup.lineupId}
+                from={displayThrow}              // IMPORTANT: même point que le player (clamp)
+                to={selectedLineup.result}
+              />
               <button
                 type="button"
                 className="absolute -translate-x-1/2 -translate-y-1/2 z-20"
