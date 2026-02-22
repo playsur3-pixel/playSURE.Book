@@ -366,11 +366,13 @@ export default function Mirage() {
               const [tooltipSide, setTooltipSide] = useState<"top" | "bottom">("top");
               const [brokenPreview, setBrokenPreview] = useState<Record<string, boolean>>({});
 
+              const isHovered = hoveredId === l.lineupId;
+              
               return (
               <button
                 key={l.lineupId}
                 type="button"
-                className="absolute -translate-x-1/2 -translate-y-1/2 group z-20 pointer-events-auto"
+                className={`absolute -translate-x-1/2 -translate-y-1/2 group z-20 pointer-events-auto ${isHovered ? "z-50" : "z-20"}`}
                 style={{ left: `${l.result.x}%`, top: `${l.result.y}%` }}
                 onPointerDown={(e) => {
                   e.stopPropagation();
