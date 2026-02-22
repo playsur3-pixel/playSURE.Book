@@ -154,20 +154,16 @@ export default function Mirage() {
       {/* MAP full-fit under topbar */}
       <div className="fixed left-0 right-0 bottom-0 z-0" style={{ top: `${topbarH}px` }}>
         <div className="h-full w-full flex items-center justify-center">
-          <div
-            ref={mapRef}
-            className="relative overflow-hidden bg-black/20"
-            style={squareSizeStyle}
-            // click in empty space => deselect
-            onPointerDown={() => setSelectedId(null)}
-          >
-            {/* Overview */}
-            <img
-              src="/maps/mirage.png"
-              alt="Mirage overview"
-              className="absolute inset-0 h-full w-full object-contain select-none pointer-events-none"
-              draggable={false}
-            />
+          <div ref={mapRef} className="relative overflow-visible" style={squareSizeStyle}>
+            {/* Clip uniquement l'image */}
+            <div className="absolute inset-0 overflow-hidden">
+              <img
+                src="/maps/mirage.png"
+                alt="Mirage overview"
+                className="h-full w-full object-contain select-none pointer-events-none"
+                draggable={false}
+              />
+            </div>
 
             {/* Filter (top-right) */}
             <div
@@ -244,17 +240,20 @@ export default function Mirage() {
                 onPointerEnter={(e) => {
                   setHoveredId(l.lineupId);
 
-                  const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                  const spaceAbove = r.top;
-                  const spaceBelow = window.innerHeight - r.bottom;
+                  const markerRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  const mapRect = mapRef.current?.getBoundingClientRect();
 
-                  // si pas assez de place en haut mais assez en bas => bottom
-                  // si pas assez en bas mais assez en haut => top
-                  // sinon fallback: top
-                  if (spaceAbove < TOOLTIP_H + TOOLTIP_MARGIN && spaceBelow >= TOOLTIP_H + TOOLTIP_MARGIN) {
-                    setTooltipSide("bottom");
+                  const needed = TOOLTIP_H + TOOLTIP_MARGIN;
+
+                  if (mapRect) {
+                    const spaceAbove = markerRect.top - mapRect.top;
+                    const spaceBelow = mapRect.bottom - markerRect.bottom;
+
+                    if (spaceAbove < needed && spaceBelow >= needed) setTooltipSide("bottom");
+                    else setTooltipSide("top");
                   } else {
-                    setTooltipSide("top");
+                    // fallback
+                    setTooltipSide(markerRect.top < needed ? "bottom" : "top");
                   }
                 }}
                 onPointerLeave={() => {
@@ -286,19 +285,21 @@ export default function Mirage() {
                 >
                   <div className="px-2 py-1 text-xs text-white/90">{l.title}</div>
 
-                  <div className="w-full aspect-video bg-black/30">
-                  <img
-                    src={l.previewImg}
-                    alt=""
-                    className="h-full w-full object-cover"
-                    draggable={false}
-                  />
-                  </div>
+                  {l.previewImg && !brokenPreview[l.lineupId] ? (
+                    <div className="w-full aspect-video bg-black/30">
+                      <img
+                        src={l.previewImg}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        draggable={false}
+                        onError={() => setBrokenPreview((p) => ({ ...p, [l.lineupId]: true }))}
+                      />
+                    </div>
                   ) : (
-                    <div className="w-full h-[360px] flex items-center justify-center text-xs text-white/60">
+                    <div className="w-full aspect-video bg-black/30 flex items-center justify-center text-xs text-white/60">
                       Pas de preview
                     </div>
-                  )
+                  )}
 
                   <div className="px-2 py-1 text-[11px] text-white/70">
                     Clique pour afficher le lancer
