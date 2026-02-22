@@ -138,7 +138,7 @@ export const handler: Handler = async (event) => {
     }
 
     // Canonical display name (garde la casse de whitelist)
-    const displayName = allowed.find((u) => norm(u) === norm(username)) || username;
+    const displayName = allowed.find((u: string) => norm(u) === norm(username)) || username;
 
     const store = getStore(STORE_NAME);
 
