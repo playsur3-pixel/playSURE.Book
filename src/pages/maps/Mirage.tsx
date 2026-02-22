@@ -4,11 +4,11 @@ import GridOverlay from "../../components/GridOverlay";
 import { mirageLineups } from "../../data/mirageLineups";
 
 const ICONS = {
-  smoke: "/assets/icons/ct-smoke.svg",
-  flash: "/assets/icons/flash.svg",
-  molotov: "/assets/icons/molotov.svg",
-  he: "/assets/icons/he.svg",
-  player: "/assets/icons/player.svg",
+  smoke: "/icons/ct-smoke.svg",
+  flash: "/icons/flash.svg",
+  molotov: "/icons/molotov.svg",
+  he: "/icons/he.svg",
+  player: "/icons/player.svg",
 } as const;
 
 function ArrowOverlay({
