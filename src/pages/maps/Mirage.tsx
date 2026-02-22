@@ -6,10 +6,9 @@ export default function Mirage() {
   const cols = 26;
   const rows = 20;
 
-  // refs
   const mapRef = useRef<HTMLDivElement>(null);
 
-  // page layout: measured topbar height (so we can be fixed with zero gap)
+  // height of topbar so the map can be fixed with zero gap
   const [topbarH, setTopbarH] = useState(72);
 
   // admin (Konami)
@@ -32,7 +31,7 @@ export default function Mirage() {
     []
   );
 
-  // 1) No scroll on this page (the drawer will scroll internally)
+  // No page scroll (drawer scrolls internally)
   useEffect(() => {
     const prevHtml = document.documentElement.style.overflow;
     const prevBody = document.body.style.overflow;
@@ -44,7 +43,7 @@ export default function Mirage() {
     };
   }, []);
 
-  // 2) Measure topbar height automatically
+  // Measure topbar height automatically
   useLayoutEffect(() => {
     const header =
       (document.querySelector("header") as HTMLElement | null) ||
@@ -60,7 +59,7 @@ export default function Mirage() {
     return () => ro.disconnect();
   }, []);
 
-  // 3) Konami listener
+  // Konami listener
   useEffect(() => {
     let buffer: string[] = [];
 
@@ -76,8 +75,7 @@ export default function Mirage() {
       const ok = konamiSeq.every((k, i) => buffer[i] === k);
       if (ok) {
         setShowAdmin((v) => !v);
-        // open admin => enable debug by default (you can remove if you prefer)
-        setDebugCoords(true);
+        setDebugCoords(true); // auto-enable debug on open
       }
     };
 
@@ -88,7 +86,10 @@ export default function Mirage() {
   return (
     <>
       {/* FULL-FIT MAP AREA: fixed under topbar, no gap, no scroll */}
-      <div className="fixed left-0 right-0 bottom-0" style={{ top: `${topbarH}px` }}>
+      <div
+        className="fixed left-0 right-0 bottom-0 z-0"
+        style={{ top: `${topbarH}px` }}
+      >
         <div className="h-full w-full flex items-center justify-center">
           <div
             ref={mapRef}
@@ -106,70 +107,75 @@ export default function Mirage() {
         </div>
       </div>
 
-{/* ADMIN DRAWER (Konami) */}
-{showAdmin && (
-  <div
-    className="fixed inset-0 z-[999] pointer-events-auto"
-    // ✅ si on clique sur le wrapper (donc hors panneau) => fermer
-    onClick={() => setShowAdmin(false)}
-  >
-    {/* backdrop visuel (ne gère AUCUN event) */}
-    <div className="absolute inset-0 bg-black/60" />
-
-    {/* panel (stop propagation) */}
-    <div
-      className="absolute right-0 top-0 h-full w-full sm:w-[520px] bg-black/80 backdrop-blur border-l border-white/10 z-10"
-      // ✅ empêche la fermeture quand on clique dans le panneau
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-        <div className="text-sm font-semibold text-white/90">Admin • Placement (Konami)</div>
-
-        <button
-          type="button"
-          className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
-          onClick={() => setShowAdmin(false)}
+      {/* ADMIN DRAWER (Konami) */}
+      {showAdmin && (
+        <div
+          className="fixed inset-0 z-50"
+          // ✅ close ONLY when clicking the backdrop area (not the panel)
+          onPointerDown={(e) => {
+            if (e.target === e.currentTarget) setShowAdmin(false);
+          }}
         >
-          Fermer
-        </button>
-      </div>
+          {/* Backdrop (visual only, no handlers) */}
+          <div className="absolute inset-0 bg-black/60" />
 
-      {/* Toggles */}
-      <div className="px-4 py-3 flex flex-wrap gap-2 border-b border-white/10">
-        <button
-          type="button"
-          onClick={() => setShowGrid((v) => !v)}
-          className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
-        >
-          {showGrid ? "Masquer grille" : "Afficher grille"}
-        </button>
+          {/* Panel */}
+          <div
+            className="absolute right-0 top-0 h-full w-full sm:w-[520px] bg-black/80 backdrop-blur border-l border-white/10"
+            // ✅ stop events early (capture phase) so no outside-click logic can close it
+            onPointerDownCapture={(e) => e.stopPropagation()}
+            onClickCapture={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+              <div className="text-sm font-semibold text-white/90">
+                Admin • Placement (Konami)
+              </div>
 
-        <button
-          type="button"
-          onClick={() => setDebugCoords((v) => !v)}
-          className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
-        >
-          {debugCoords ? "Debug: ON" : "Debug: OFF"}
-        </button>
-      </div>
+              <button
+                type="button"
+                className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
+                onClick={() => setShowAdmin(false)}
+              >
+                Fermer
+              </button>
+            </div>
 
-      {/* Scrollable content */}
-      <div className="h-[calc(100%-96px)] overflow-auto p-4">
-        <PlacementTool
-          mapRef={mapRef}
-          rows={rows}
-          cols={cols}
-          enabledFromParent={debugCoords}
-          fitMode="contain"
-          imageAspect={1}
-          defaultStuffId="new-stuff"
-          defaultTitle="New lineup"
-          defaultType="smoke"
-        />
-      </div>
-    </div>
-  </div>
-)}
+            {/* Toggles */}
+            <div className="px-4 py-3 flex flex-wrap gap-2 border-b border-white/10">
+              <button
+                type="button"
+                onClick={() => setShowGrid((v) => !v)}
+                className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
+              >
+                {showGrid ? "Masquer grille" : "Afficher grille"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDebugCoords((v) => !v)}
+                className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
+              >
+                {debugCoords ? "Debug: ON" : "Debug: OFF"}
+              </button>
+            </div>
+
+            {/* Scrollable content */}
+            <div className="h-[calc(100%-96px)] overflow-auto p-4">
+              <PlacementTool
+                mapRef={mapRef}
+                rows={rows}
+                cols={cols}
+                enabledFromParent={debugCoords}
+                fitMode="contain"
+                imageAspect={1}
+                defaultStuffId="new-stuff"
+                defaultTitle="New lineup"
+                defaultType="smoke"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
