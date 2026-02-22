@@ -106,68 +106,71 @@ export default function Mirage() {
         </div>
       </div>
 
-      {/* ADMIN DRAWER (Konami) */}
-      {showAdmin && (
-        <div className="fixed inset-0 z-[999]">
-          {/* Backdrop */}
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/60"
-            onClick={() => setShowAdmin(false)}
-            aria-label="Fermer admin"
-          />
+{/* ADMIN DRAWER (Konami) */}
+{showAdmin && (
+  <div className="fixed inset-0 z-[999]">
+    {/* Backdrop */}
+    <div
+      className="absolute inset-0 bg-black/60 z-0"
+      onMouseDown={() => setShowAdmin(false)}
+      onClick={() => setShowAdmin(false)}
+    />
 
-          {/* Panel */}
-          <div className="absolute right-0 top-0 h-full w-full sm:w-[520px] bg-black/80 backdrop-blur border-l border-white/10">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-              <div className="text-sm font-semibold text-white/90">
-                Admin • Placement (Konami)
-              </div>
-              <button
-                type="button"
-                className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
-                onClick={() => setShowAdmin(false)}
-              >
-                Fermer
-              </button>
-            </div>
-
-            {/* Toggles */}
-            <div className="px-4 py-3 flex flex-wrap gap-2 border-b border-white/10">
-              <button
-                type="button"
-                onClick={() => setShowGrid((v) => !v)}
-                className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
-              >
-                {showGrid ? "Masquer grille" : "Afficher grille"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setDebugCoords((v) => !v)}
-                className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
-              >
-                {debugCoords ? "Debug: ON" : "Debug: OFF"}
-              </button>
-            </div>
-
-            {/* Scrollable content */}
-            <div className="h-[calc(100%-96px)] overflow-auto p-4">
-              <PlacementTool
-                mapRef={mapRef}
-                rows={rows}
-                cols={cols}
-                enabledFromParent={debugCoords}
-                fitMode="contain"
-                imageAspect={1}
-                defaultStuffId="new-stuff"
-                defaultTitle="New lineup"
-                defaultType="smoke"
-              />
-            </div>
-          </div>
+    {/* Panel */}
+    <div
+      className="absolute right-0 top-0 h-full w-full sm:w-[520px] bg-black/80 backdrop-blur border-l border-white/10 z-10 pointer-events-auto"
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+        <div className="text-sm font-semibold text-white/90">
+          Admin • Placement (Konami)
         </div>
-      )}
+        <button
+          type="button"
+          className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
+          onClick={() => setShowAdmin(false)}
+        >
+          Fermer
+        </button>
+      </div>
+
+      {/* Toggles */}
+      <div className="px-4 py-3 flex flex-wrap gap-2 border-b border-white/10">
+        <button
+          type="button"
+          onClick={() => setShowGrid((v) => !v)}
+          className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
+        >
+          {showGrid ? "Masquer grille" : "Afficher grille"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setDebugCoords((v) => !v)}
+          className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
+        >
+          {debugCoords ? "Debug: ON" : "Debug: OFF"}
+        </button>
+      </div>
+
+      {/* Scrollable content */}
+      <div className="h-[calc(100%-96px)] overflow-auto p-4">
+        <PlacementTool
+          mapRef={mapRef}
+          rows={rows}
+          cols={cols}
+          enabledFromParent={debugCoords}
+          fitMode="contain"
+          imageAspect={1}
+          defaultStuffId="new-stuff"
+          defaultTitle="New lineup"
+          defaultType="smoke"
+        />
+      </div>
+    </div>
+  </div>
+)}
     </>
   );
 }
