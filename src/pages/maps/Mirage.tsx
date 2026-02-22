@@ -8,10 +8,10 @@ export default function Mirage() {
 
   const mapRef = useRef<HTMLDivElement>(null);
 
-  // height of topbar so the map can be fixed with zero gap
+  // Mesure topbar (pour coller la map juste dessous)
   const [topbarH, setTopbarH] = useState(72);
 
-  // admin (Konami)
+  // Admin (Konami)
   const [showAdmin, setShowAdmin] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
   const [debugCoords, setDebugCoords] = useState(false);
@@ -31,7 +31,7 @@ export default function Mirage() {
     []
   );
 
-  // No page scroll (drawer scrolls internally)
+  // Empêche le scroll sur cette page (le drawer scrolle à l'intérieur)
   useEffect(() => {
     const prevHtml = document.documentElement.style.overflow;
     const prevBody = document.body.style.overflow;
@@ -43,7 +43,7 @@ export default function Mirage() {
     };
   }, []);
 
-  // Measure topbar height automatically
+  // Mesure dynamique de la topbar
   useLayoutEffect(() => {
     const header =
       (document.querySelector("header") as HTMLElement | null) ||
@@ -64,7 +64,6 @@ export default function Mirage() {
     let buffer: string[] = [];
 
     const onKeyDown = (e: KeyboardEvent) => {
-      // ignore typing contexts
       const el = e.target as HTMLElement | null;
       const tag = el?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || el?.isContentEditable) return;
@@ -75,7 +74,7 @@ export default function Mirage() {
       const ok = konamiSeq.every((k, i) => buffer[i] === k);
       if (ok) {
         setShowAdmin((v) => !v);
-        setDebugCoords(true); // auto-enable debug on open
+        setDebugCoords(true);
       }
     };
 
@@ -83,17 +82,22 @@ export default function Mirage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [konamiSeq]);
 
+  // Taille carré stable: min(largeur écran, hauteur dispo sous topbar)
+  const squareSizeStyle = {
+    width: `min(100vw, calc(100dvh - ${topbarH}px))`,
+    height: `min(100vw, calc(100dvh - ${topbarH}px))`,
+  } as const;
+
   return (
     <>
-      {/* FULL-FIT MAP AREA: fixed under topbar, no gap, no scroll */}
-      <div
-        className="fixed left-0 right-0 bottom-0 z-0"
-        style={{ top: `${topbarH}px` }}
-      >
+      {/* MAP AREA full-fit sous la topbar */}
+      <div className="fixed left-0 right-0 bottom-0 z-0" style={{ top: `${topbarH}px` }}>
         <div className="h-full w-full flex items-center justify-center">
+          {/* ✅ Zone cliquable stable (mapRef) */}
           <div
             ref={mapRef}
-            className="relative aspect-square h-full max-h-full w-auto max-w-full overflow-hidden bg-black/20"
+            className="relative overflow-hidden bg-black/20"
+            style={squareSizeStyle}
           >
             <img
               src="/maps/mirage.png"
@@ -111,26 +115,23 @@ export default function Mirage() {
       {showAdmin && (
         <div
           className="fixed inset-0 z-50"
-          // ✅ close ONLY when clicking the backdrop area (not the panel)
           onPointerDown={(e) => {
+            // Ferme uniquement si clic sur le fond (pas dans le panneau)
             if (e.target === e.currentTarget) setShowAdmin(false);
           }}
         >
-          {/* Backdrop (visual only, no handlers) */}
+          {/* Backdrop (visuel) */}
           <div className="absolute inset-0 bg-black/60" />
 
           {/* Panel */}
           <div
             className="absolute right-0 top-0 h-full w-full sm:w-[520px] bg-black/80 backdrop-blur border-l border-white/10"
-            // ✅ stop events early (capture phase) so no outside-click logic can close it
+            // Stop events très tôt
             onPointerDownCapture={(e) => e.stopPropagation()}
             onClickCapture={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-              <div className="text-sm font-semibold text-white/90">
-                Admin • Placement (Konami)
-              </div>
-
+              <div className="text-sm font-semibold text-white/90">Admin • Placement (Konami)</div>
               <button
                 type="button"
                 className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
@@ -140,7 +141,6 @@ export default function Mirage() {
               </button>
             </div>
 
-            {/* Toggles */}
             <div className="px-4 py-3 flex flex-wrap gap-2 border-b border-white/10">
               <button
                 type="button"
@@ -159,7 +159,6 @@ export default function Mirage() {
               </button>
             </div>
 
-            {/* Scrollable content */}
             <div className="h-[calc(100%-96px)] overflow-auto p-4">
               <PlacementTool
                 mapRef={mapRef}
