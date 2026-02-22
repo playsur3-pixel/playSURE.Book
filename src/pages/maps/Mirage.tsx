@@ -209,10 +209,10 @@ export default function Mirage() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <img
-                    src={ICONS.player.src}
+                    src={PLAYER_ICON.src}
                     alt=""
                     draggable={false}
-                    style={{ width: ICONS.player.size, height: ICONS.player.size }}
+                    style={{ width: PLAYER_ICON.size, height: PLAYER_ICON.size }}
                     className="drop-shadow transition-transform hover:scale-110"
                   />
                 </button>
