@@ -2,17 +2,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import GridOverlay from "../../components/GridOverlay";
 import PlacementTool from "../../components/PlacementTool";
 import { mirageLineups } from "../../data/mirageLineups";
+import { GRENADE_ICONS, PLAYER_ICON, type GrenadeType, type GrenadeFilter } from "../../config/icons";
 
-const ICONS = {
-  smoke: "/icons/ct-smoke.svg",
-  flash: "/icons/flash.svg",
-  molotov: "/icons/molotov.svg",
-  he: "/icons/he.svg",
-  player: "/icons/player.svg",
-} as const;
-
-type GrenadeType = "smoke" | "flash" | "molotov" | "he";
-type GrenadeFilter = "all" | GrenadeType;
 
 function ArrowOverlay({
   from,
@@ -61,9 +52,10 @@ export default function Mirage() {
   const [debugCoords, setDebugCoords] = useState(true);
 
   // filter + hover/selection
-  const [grenadeFilter, setGrenadeFilter] = useState<GrenadeFilter>("all");
+  const [grenadeFilter, setGrenadeFilter] = useState<GrenadeFilter>("smoke");
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  
 
   const konamiSeq = useMemo(
     () => [
@@ -217,10 +209,10 @@ export default function Mirage() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <img
-                    src={ICONS.player}
+                    src={ICONS.player.src}
                     alt=""
                     draggable={false}
-                    style={{ width: 34, height: 34 }}
+                    style={{ width: ICONS.player.size, height: ICONS.player.size }}
                     className="drop-shadow transition-transform hover:scale-110"
                   />
                 </button>
@@ -230,6 +222,7 @@ export default function Mirage() {
             {/* Markers (filtered) */}
             {visibleLineups.map((l) => {
               const isSelected = l.lineupId === selectedId;
+              const icon = GRENADE_ICONS[l.type as GrenadeType];
 
               return (
                 <button
@@ -247,15 +240,15 @@ export default function Mirage() {
                   }
                   title={l.title}
                 >
-                  <img
-                    src={ICONS[l.type as GrenadeType]}
-                    alt=""
-                    draggable={false}
-                    style={{ width: 30, height: 30 }}
-                    className={`drop-shadow transition-transform ${
-                      isSelected ? "scale-110" : "group-hover:scale-110"
-                    }`}
-                  />
+                <img
+                  src={icon.src}
+                  alt=""
+                  draggable={false}
+                  style={{ width: icon.size, height: icon.size }}
+                  className={`drop-shadow transition-transform ${
+                    isSelected ? "scale-110" : "group-hover:scale-110"
+                  }`}
+                />
 
                   {/* Hover tooltip preview */}
                   <div
@@ -269,7 +262,7 @@ export default function Mirage() {
                     <img
                       src={l.previewImg}
                       alt=""
-                      className="w-full h-36 object-cover"
+                      className="w-full h-[360px] object-cover"
                       draggable={false}
                     />
                   </div>

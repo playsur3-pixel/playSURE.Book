@@ -39,7 +39,7 @@ export const mirageLineups: MirageLineup[] = [
   type: "smoke",
   result: { x: 43.24, y: 88.96 },
   throw: { x: 90.22, y: 55.28 },
-  previewImg: "/previews/mirage/smoke-ct.jpg",
+  previewImg: "/previews/mirage/smoke-ct.png",
 },
 {
   lineupId: "cplastairs-2026-02-22080412",
@@ -48,7 +48,7 @@ export const mirageLineups: MirageLineup[] = [
   type: "smoke",
   result: { x: 53.15, y: 69.25 },
   throw: { x: 92.02, y: 59.9 },
-  previewImg: "/previews/mirage/smoke-stairs.jpg",
+  previewImg: "/previews/mirage/smoke-stairs.png",
 },
 {
   lineupId: "cplajungle-2026-02-22080442",
@@ -57,7 +57,7 @@ export const mirageLineups: MirageLineup[] = [
   type: "smoke",
   result: { x: 48.42, y: 69.58 },
   throw: { x: 84.13, y: 67.78 },
-  previewImg: "/previews/mirage/smoke-jungle.jpg",
+  previewImg: "/previews/mirage/smoke-jungle.png",
 },
 {
   lineupId: "connect-2026-02-22080616",
