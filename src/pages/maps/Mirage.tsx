@@ -31,8 +31,8 @@ export default function Mirage() {
           className="relative w-full aspect-square overflow-hidden rounded-xl2 border border-border/50 bg-black/30"
         >
           <img
-            src="/maps/mirage.png"
-            srcSet="/maps/mirage_x2.png 2x"
+            src="/maps/mirage_x2.png"
+            srcSet="/maps/mirage_x2.png"
             alt="Mirage overview"
             className="absolute inset-0 h-full w-full object-contain select-none pointer-events-none"
             draggable={false}
