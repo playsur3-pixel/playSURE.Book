@@ -20,7 +20,7 @@ function ArrowOverlay({
 }) {
   return (
     <svg
-      className="absolute inset-0 h-full w-full pointer-events-none"
+      className="absolute inset-0 h-full w-full pointer-events-none z-30"
       viewBox="0 0 100 100"
       preserveAspectRatio="none"
     >
@@ -29,6 +29,7 @@ function ArrowOverlay({
           <path d="M0,0 L6,3 L0,6 Z" fill="rgba(255,255,255,0.85)" />
         </marker>
       </defs>
+
       <line
         x1={from.x}
         y1={from.y}
@@ -51,10 +52,7 @@ export default function Mirage() {
 
   const [showGrid, setShowGrid] = useState(false);
 
-  // Hover sur un marker résultat
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-
-  // Sélection (clic sur un marker résultat)
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const hoveredLineup = useMemo(
@@ -67,18 +65,12 @@ export default function Mirage() {
     [selectedId]
   );
 
-  function onMapBackgroundClick(e: React.MouseEvent<HTMLDivElement>) {
-    // si tu cliques dans le vide, on désélectionne
-    // (on ignore si le clic vient d’un bouton marker grâce à stopPropagation)
+  function onMapBackgroundClick() {
     setSelectedId(null);
   }
 
   function openDetails(lineupId: string, stuffId: string) {
-    // page détail : tu choisis ton format d’URL
-    // option 1: page par stuff + query lineup
     navigate(`/maps/mirage/stuff/${stuffId}?lineup=${lineupId}`);
-    // option 2: page par lineup
-    // navigate(`/maps/mirage/lineups/${lineupId}`);
   }
 
   return (
@@ -110,45 +102,31 @@ export default function Mirage() {
             className="relative w-full h-[72vh] overflow-hidden rounded-xl2 border border-border/50 bg-black/30"
             onClick={onMapBackgroundClick}
           >
-            {/* overview (PNG ou SVG) */}
-            <img
-              src="/maps/mirage.png"
-              srcSet="/maps/mirage_x2.png 2x"
-              alt="Mirage overview"
-              className="absolute inset-0 h-full w-full object-contain select-none pointer-events-none"
-              draggable={false}
-            />
+            {/* Layer 1: background (ne doit JAMAIS capter les events) */}
+            <div className="absolute inset-0 z-0 pointer-events-none">
+              <img
+                src="/maps/mirage.png"
+                srcSet="/maps/mirage_x2.png 2x"
+                alt="Mirage overview"
+                className="h-full w-full object-contain select-none"
+                draggable={false}
+              />
+            </div>
 
-            {selectedLineup && (
-            <button
-                type="button"
-                className="absolute -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-auto"
-                style={{ left: `${selectedLineup.throw.x}%`, top: `${selectedLineup.throw.y}%` }}
-                onClick={(e) => {
-                e.stopPropagation();
-                openDetails(selectedLineup.lineupId, selectedLineup.stuffId);
-                }}
-            >
-                <img src={ICONS.player} alt="" style={{ width: 34, height: 34 }} draggable={false}
-                    className="drop-shadow transition-transform hover:scale-110" />
-            </button>
-            )}
+            {/* Layer 2: overlays non interactifs */}
+            <div className="absolute inset-0 z-20 pointer-events-none">
+              <GridOverlay rows={rows} cols={cols} show={showGrid} />
+              {selectedLineup && <ArrowOverlay from={selectedLineup.throw} to={selectedLineup.result} />}
+            </div>
 
-            <GridOverlay rows={rows} cols={cols} show={showGrid} />
-
-            {/* Flèche + player uniquement si sélection */}
-            {selectedLineup && (
-              <>
-                <ArrowOverlay from={selectedLineup.throw} to={selectedLineup.result} />
-
-                {/* player clickable */}
+            {/* Layer 3: interaction (TOUT ce qui est cliquable/hover) */}
+            <div className="absolute inset-0 z-50 pointer-events-auto">
+              {/* Player (uniquement si sélection) */}
+              {selectedLineup && (
                 <button
                   type="button"
                   className="absolute -translate-x-1/2 -translate-y-1/2"
-                  style={{
-                    left: `${selectedLineup.throw.x}%`,
-                    top: `${selectedLineup.throw.y}%`,
-                  }}
+                  style={{ left: `${selectedLineup.throw.x}%`, top: `${selectedLineup.throw.y}%` }}
                   onClick={(e) => {
                     e.stopPropagation();
                     openDetails(selectedLineup.lineupId, selectedLineup.stuffId);
@@ -158,54 +136,54 @@ export default function Mirage() {
                   <img
                     src={ICONS.player}
                     alt=""
+                    draggable={false}
                     className="drop-shadow transition-transform hover:scale-110"
                     style={{ width: 34, height: 34 }}
-                    draggable={false}
                   />
                 </button>
-              </>
-            )}
+              )}
 
-            {/* Markers RESULT (cliquables + hover preview) */}
-        {mirageLineups.map((l) => (
-        <button
-            key={l.lineupId}
-            type="button"
-            className="absolute -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-auto group"
-            style={{ left: `${l.result.x}%`, top: `${l.result.y}%` }}
-            onMouseEnter={() => setHoveredId(l.lineupId)}
-            onMouseLeave={() => setHoveredId((cur) => (cur === l.lineupId ? null : cur))}
-            onClick={(e) => {
-            e.stopPropagation();
-            setSelectedId(l.lineupId);
-            }}
-            title={l.title}
-        >
-            <img
-            src={ICONS[l.type]}
-            alt=""
-            draggable={false}
-            className="drop-shadow transition-transform group-hover:scale-110"
-            style={{ width: 30, height: 30 }}
-            />
+              {/* Markers RESULT */}
+              {mirageLineups.map((l) => (
+                <button
+                  key={l.lineupId}
+                  type="button"
+                  className="absolute -translate-x-1/2 -translate-y-1/2 group"
+                  style={{ left: `${l.result.x}%`, top: `${l.result.y}%` }}
+                  onPointerEnter={() => setHoveredId(l.lineupId)}
+                  onPointerLeave={() => setHoveredId((cur) => (cur === l.lineupId ? null : cur))}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedId(l.lineupId);
+                  }}
+                  title={l.title}
+                >
+                  <img
+                    src={ICONS[l.type]}
+                    alt=""
+                    draggable={false}
+                    className="drop-shadow transition-transform group-hover:scale-110"
+                    style={{ width: 30, height: 30 }}
+                  />
 
-            {/* Tooltip preview */}
-            <div
-            className="
-                pointer-events-none opacity-0 group-hover:opacity-100 transition
-                absolute left-1/2 top-[-10px] -translate-x-1/2 -translate-y-full
-                z-40 w-64 rounded-lg overflow-hidden border border-white/15 bg-black/70 backdrop-blur
-            "
-            >
-            <div className="px-2 py-1 text-xs text-white/90">{l.title}</div>
-            <img src={l.previewImg} alt="" className="w-full h-36 object-cover" draggable={false} />
-            <div className="px-2 py-1 text-[11px] text-white/70">Clique pour afficher le lancer</div>
+                  {/* Tooltip preview */}
+                  <div
+                    className="
+                      pointer-events-none opacity-0 group-hover:opacity-100 transition
+                      absolute left-1/2 top-[-10px] -translate-x-1/2 -translate-y-full
+                      w-64 rounded-lg overflow-hidden border border-white/15 bg-black/70 backdrop-blur
+                    "
+                  >
+                    <div className="px-2 py-1 text-xs text-white/90">{l.title}</div>
+                    <img src={l.previewImg} alt="" className="w-full h-36 object-cover" draggable={false} />
+                    <div className="px-2 py-1 text-[11px] text-white/70">Clique pour afficher le lancer</div>
+                  </div>
+                </button>
+              ))}
             </div>
-        </button>
-        ))}
           </div>
 
-          {/* PANEL DROIT (optionnel : infos sélection) */}
+          {/* PANEL DROIT */}
           <div className="rounded-xl2 border border-border/50 bg-card/40 p-3 lg:sticky lg:top-24 h-fit">
             <div className="text-sm font-semibold">Sélection</div>
             <div className="mt-2 text-sm">
