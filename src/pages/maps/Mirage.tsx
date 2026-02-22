@@ -1,190 +1,121 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { mirageLineups, MirageLineup } from "../../data/mirageLineups";
-
-const ICONS = {
-  smoke: "/icons/tr-smoke.svg",
-  flash: "/icons/flash.svg",
-  molotov: "/icons/molotov.svg",
-  he: "/icons/he.svg",
-  player: "/icons/player.svg",
-};
-
-function pctStyle(p: { x: number; y: number }) {
-  return { left: `${p.x}%`, top: `${p.y}%` } as const;
-}
+import { useMemo, useState, useRef } from "react";
+import GridOverlay, { pctToGrid } from "../../components/GridOverlay";
+import PlacementTool from "../../components/PlacementTool";
 
 export default function Mirage() {
-  const navigate = useNavigate();
-  const [hovered, setHovered] = useState<string | null>(null);
+  // Grille A-Z / 1-X
+  const cols = 26; // A..Z
+  const rows = 20; // 1..20 (change si tu veux)
 
-  const hoveredLineup = useMemo(
-    () => mirageLineups.find((l) => l.lineupId === hovered) ?? null,
-    [hovered]
-  );
+  // Toggle grille + debug coords
+  const [showGrid, setShowGrid] = useState(true);
+  const [debugCoords, setDebugCoords] = useState(true);
+
+  const mapRef = useRef<HTMLDivElement>(null);
+
+  const help = useMemo(() => {
+    return `Grid: ${cols} cols (A-Z), ${rows} rows (1-${rows})`;
+  }, [cols, rows]);
+
+  function onMapClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (!debugCoords) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const xPct = ((e.clientX - rect.left) / rect.width) * 100;
+    const yPct = ((e.clientY - rect.top) / rect.height) * 100;
+
+    const grid = pctToGrid(xPct, yPct, rows, cols);
+
+    // Copiable direct pour ton tableau de data
+    const payload = {
+      x: +xPct.toFixed(2),
+      y: +yPct.toFixed(2),
+      grid,
+    };
+
+    console.log("Mirage click:", payload);
+
+    // Si tu veux copier auto dans le presse-papiers (optionnel)
+    // navigator.clipboard?.writeText(JSON.stringify(payload));
+  }
 
   return (
     <div className="rounded-xl2 border border-border bg-card/60 p-6 shadow-soft backdrop-blur">
-      <div className="mb-4">
-        <h2 className="text-xl font-semibold">Mirage</h2>
-        <p className="mt-1 text-sm text-muted">
-          Passe la souris sur une icône pour voir la flèche + preview. Clique sur le joueur pour ouvrir la fiche.
-        </p>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">Mirage</h2>
+          <p className="mt-1 text-sm text-muted">
+            Overview + grille de placement. Clique sur la map pour logger des coordonnées.
+          </p>
+          <p className="mt-1 text-xs text-muted/80">{help}</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowGrid((v) => !v)}
+            className="rounded-lg border border-border/60 bg-card/40 px-3 py-1.5 text-xs hover:bg-card/60 transition"
+          >
+            {showGrid ? "Masquer grille" : "Afficher grille"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setDebugCoords((v) => !v)}
+            className="rounded-lg border border-border/60 bg-card/40 px-3 py-1.5 text-xs hover:bg-card/60 transition"
+            title="Active/désactive le log des coordonnées au clic"
+          >
+            {debugCoords ? "Debug: ON" : "Debug: OFF"}
+          </button>
+        </div>
       </div>
 
-      <div className="relative w-full max-w-5xl mx-auto overflow-hidden rounded-xl2 border border-border/60 bg-black/20">
-        {/* ratio: adapte si ton svg n'est pas carré */}
-        <div className="relative w-full aspect-[1/1]">
+      {/* Zone map */}
+      <div className="mt-5 rounded-xl2 border border-border/60 bg-black/20 p-3">
+        {/* 
+          Important:
+          - On fixe une hauteur max liée à l'écran (pour "fit" dans l'encart).
+          - Le SVG est en object-contain => jamais déformé, toujours visible en entier.
+        */}
+        <div
+          className="
+            relative w-full
+            h-[68vh] sm:h-[72vh]
+            overflow-hidden rounded-xl2
+            border border-border/50
+            bg-black/30
+          "
+          onClick={onMapClick}
+        >
           {/* Overview */}
           <img
             src="/maps/mirage.svg"
             alt="Mirage overview"
-            className="absolute inset-0 h-full w-full object-contain select-none pointer-events-none"
+            className="absolute inset-0 h-full w-full object-contain select-none"
             draggable={false}
           />
 
-          {/* Overlay flèche (uniquement quand hover) */}
-          {hoveredLineup && (
-            <ArrowOverlay from={hoveredLineup.throw} to={hoveredLineup.result} />
-          )}
+          {/* Grille overlay */}
+          <GridOverlay
+            show={showGrid}
+            rows={rows}
+            cols={cols}
+          />
 
-          {/* Markers */}
-          {mirageLineups.map((l) => (
-            <LineupMarkers
-              key={l.lineupId}
-              lineup={l}
-              isHovered={hovered === l.lineupId}
-              onHover={(v) => setHovered(v)}
-              onLeave={() => setHovered(null)}
-              onOpen={() => navigate(`/mirage/stuff/${l.stuffId}?lineup=${l.lineupId}`)}
-            />
-          ))}
+          <PlacementTool mapRef={mapRef} rows={rows} cols={cols} />
+
+          {/* 
+            Ici plus tard:
+            - icônes
+            - flèches
+            - hover preview
+          */}
+        </div>
+
+        <div className="mt-2 text-xs text-muted/80">
+          Astuce : active la grille, clique sur l’endroit voulu → récupère {`{ x, y, grid }`} dans la console.
         </div>
       </div>
     </div>
-  );
-}
-
-function LineupMarkers({
-  lineup,
-  isHovered,
-  onHover,
-  onLeave,
-  onOpen,
-}: {
-  lineup: MirageLineup;
-  isHovered: boolean;
-  onHover: (id: string) => void;
-  onLeave: () => void;
-  onOpen: () => void;
-}) {
-  // tailles icônes
-  const size = 30;
-  const playerSize = 32;
-
-  return (
-    <>
-      {/* Icône résultat (smoke) */}
-      <button
-        type="button"
-        className="absolute -translate-x-1/2 -translate-y-1/2"
-        style={pctStyle(lineup.result)}
-        onMouseEnter={() => onHover(lineup.lineupId)}
-        onMouseLeave={onLeave}
-        aria-label={lineup.title}
-      >
-        <img
-          src={ICONS[lineup.type]}
-          alt=""
-          width={size}
-          height={size}
-          className={`drop-shadow transition-transform ${isHovered ? "scale-110" : "scale-100"}`}
-          draggable={false}
-        />
-      </button>
-
-      {/* Icône joueur (position de lancer) + tooltip preview */}
-      <button
-        type="button"
-        className="absolute -translate-x-1/2 -translate-y-1/2 group"
-        style={pctStyle(lineup.throw)}
-        onMouseEnter={() => onHover(lineup.lineupId)}
-        onMouseLeave={onLeave}
-        onClick={onOpen}
-        aria-label={`Ouvrir la fiche: ${lineup.title}`}
-      >
-        <img
-          src={ICONS.player}
-          alt=""
-          width={playerSize}
-          height={playerSize}
-          className={`drop-shadow transition-transform ${isHovered ? "scale-110" : "scale-100"}`}
-          draggable={false}
-        />
-
-        {/* Tooltip preview */}
-        <div
-          className={`
-            pointer-events-none opacity-0 group-hover:opacity-100 transition
-            absolute left-1/2 top-[-10px] -translate-x-1/2 -translate-y-full
-            w-64 rounded-lg overflow-hidden border border-white/15 bg-black/70 backdrop-blur
-          `}
-        >
-          <div className="px-2 py-1 text-xs text-white/90">{lineup.title}</div>
-          <img
-            src={lineup.previewImg}
-            alt={`Preview ${lineup.title}`}
-            className="w-full h-36 object-cover"
-            draggable={false}
-          />
-          <div className="px-2 py-1 text-[11px] text-white/70">
-            Clique pour voir les détails
-          </div>
-        </div>
-      </button>
-    </>
-  );
-}
-
-/**
- * Flèche en overlay SVG au-dessus de la map.
- * Les coords sont en % et on dessine en viewBox 0..100 pour simplifier.
- */
-function ArrowOverlay({
-  from,
-  to,
-}: {
-  from: { x: number; y: number };
-  to: { x: number; y: number };
-}) {
-  return (
-    <svg
-      className="absolute inset-0 h-full w-full pointer-events-none"
-      viewBox="0 0 100 100"
-      preserveAspectRatio="none"
-    >
-      <defs>
-        <marker
-          id="arrowHead"
-          markerWidth="6"
-          markerHeight="6"
-          refX="5"
-          refY="3"
-          orient="auto"
-        >
-          <path d="M0,0 L6,3 L0,6 Z" fill="rgba(255,255,255,0.85)" />
-        </marker>
-      </defs>
-
-      <line
-        x1={from.x}
-        y1={from.y}
-        x2={to.x}
-        y2={to.y}
-        stroke="rgba(255,255,255,0.75)"
-        strokeWidth="1.2"
-        markerEnd="url(#arrowHead)"
-      />
-    </svg>
   );
 }
