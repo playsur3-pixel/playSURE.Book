@@ -148,6 +148,41 @@ export default function Mirage() {
   const selectedLineup = selectedId
     ? mirageLineups.find((l) => l.lineupId === selectedId) ?? null
     : null;
+  // ajout pour décaler le player et éviter qu'il soit coupé sur les bords de la map
+    const PLAYER_SIZE = 60; // ta taille player
+
+    const [mapSize, setMapSize] = useState({ w: 0, h: 0 });
+
+    useLayoutEffect(() => {
+      const el = mapRef.current;
+      if (!el) return;
+
+      const update = () => {
+        const r = el.getBoundingClientRect();
+        setMapSize({ w: r.width, h: r.height });
+      };
+
+      update();
+      const ro = new ResizeObserver(update);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }, []);
+    // fin ajout
+    const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
+    const clampPctPoint = (p: { x: number; y: number }, w: number, h: number, sizePx: number) => {
+      if (!w || !h) return p;
+
+      const half = sizePx / 2;
+      const xPx = clamp((p.x / 100) * w, half, w - half);
+      const yPx = clamp((p.y / 100) * h, half, h - half);
+
+      return { x: (xPx / w) * 100, y: (yPx / h) * 100 };
+    };
+
+    const displayThrow = selectedLineup
+  ? clampPctPoint(selectedLineup.throw, mapSize.w, mapSize.h, PLAYER_SIZE)
+  : null;
 
   return (
     <>
@@ -189,31 +224,35 @@ export default function Mirage() {
             <GridOverlay rows={rows} cols={cols} show={showGrid} />
 
             {/* Arrow + Player when selected */}
-            {selectedLineup && (
-              <>
-                <ArrowOverlay from={selectedLineup.throw} to={selectedLineup.result} />
+            {selectedLineup && displayThrow && (
+            <>
+              <ArrowOverlay from={displayThrow} to={selectedLineup.result} />
 
-                <button
-                  type="button"
-                  className="absolute -translate-x-1/2 -translate-y-1/2 z-20"
-                  style={{
-                    left: `${selectedLineup.throw.x}%`,
-                    top: `${selectedLineup.throw.y}%`,
-                  }}
-                  title="Position de lancer"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <img
-                    src={PLAYER_ICON.src}
-                    alt=""
-                    draggable={false}
-                    style={{ width: PLAYER_ICON.size, height: PLAYER_ICON.size }}
-                    className="drop-shadow transition-transform hover:scale-110"
-                  />
-                </button>
+              <button
+                type="button"
+                className="absolute -translate-x-1/2 -translate-y-1/2 z-20"
+                style={{
+                  left: `${displayThrow.x}%`,
+                  top: `${displayThrow.y}%`,
+                }}
+                title="Position de lancer"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <img
+                  src={PLAYER_ICON.src /* ou ICONS.player si tu utilises encore ICONS */}
+                  alt=""
+                  draggable={false}
+                  style={{ width: PLAYER_SIZE, height: PLAYER_SIZE }}
+                  className="drop-shadow transition-transform hover:scale-110"
+                />
+              </button>
               </>
-            )}
+            )
+            }
+            const displayThrow = selectedLineup
+            ? clampPctPoint(selectedLineup.throw, mapSize.w, mapSize.h, PLAYER_SIZE)
+            : null;
 
             {/* Markers (filtered) */}
             {visibleLineups.map((l) => {
