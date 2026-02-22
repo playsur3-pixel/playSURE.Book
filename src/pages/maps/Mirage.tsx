@@ -6,12 +6,14 @@ export default function Mirage() {
   const cols = 26;
   const rows = 20;
 
+  // adapte si ta topbar est différente
+  const TOPBAR_H = 72; // px
+
   const mapRef = useRef<HTMLDivElement>(null);
 
-  // ✅ cachés par défaut
+  const [showAdmin, setShowAdmin] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
   const [debugCoords, setDebugCoords] = useState(false);
-  const [showAdmin, setShowAdmin] = useState(false);
 
   // Konami: ↑ ↑ ↓ ↓ ← → ← →
   useEffect(() => {
@@ -19,7 +21,6 @@ export default function Mirage() {
     let buffer: string[] = [];
 
     const onKeyDown = (e: KeyboardEvent) => {
-      // ignore si l'utilisateur tape dans un input/textarea
       const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || (e.target as HTMLElement | null)?.isContentEditable) return;
 
@@ -29,7 +30,7 @@ export default function Mirage() {
       const ok = seq.every((k, i) => buffer[i] === k);
       if (ok) {
         setShowAdmin((v) => !v);
-        // quand on ouvre admin, on active debug par défaut (optionnel)
+        // en ouvrant l'admin: debug on (tu peux enlever si tu veux)
         setDebugCoords(true);
       }
     };
@@ -39,83 +40,107 @@ export default function Mirage() {
   }, []);
 
   return (
-    <div className="rounded-xl2 border border-border bg-card/60 p-6 shadow-soft backdrop-blur">
-      <h2 className="text-xl font-semibold">Mirage</h2>
-      <p className="mt-1 text-sm text-muted">
-        Hover une smoke = preview. Clique une smoke = affiche le lancer. Clique le joueur = page détail.
-      </p>
+    <div className="w-full">
+      {/* Container sans scroll */}
+      <div
+        className="mx-auto w-full max-w-6xl px-4"
+        style={{
+          // 100dvh - topbar - padding vertical (à ajuster si besoin)
+          height: `calc(100dvh - ${TOPBAR_H}px)`,
+        }}
+      >
+        {/* Carte unique */}
+        <div className="h-full rounded-xl2 border border-border bg-card/40 shadow-soft backdrop-blur overflow-hidden">
+          {/* Map zone full fit */}
+          <div className="h-full w-full flex items-center justify-center p-3">
+            <div
+              ref={mapRef}
+              className="relative aspect-square"
+              style={{
+                // maximum possible size inside the card WITHOUT scroll
+                height: "100%",
+                maxHeight: "100%",
+                width: "auto",
+              }}
+            >
+              {/* IMPORTANT: on force le carré à ne jamais dépasser la largeur dispo */}
+              <div className="h-full aspect-square max-w-[calc(100vw-32px)]">
+                <div className="relative h-full w-full overflow-hidden rounded-xl2 bg-black/20">
+                  <img
+                    src="/maps/mirage.png"
+                    alt="Mirage overview"
+                    className="absolute inset-0 h-full w-full object-contain select-none pointer-events-none"
+                    draggable={false}
+                  />
 
-      {/* MAP */}
-       <div className="flex justify-center p-4 w-full max-w-[900px]">
-        <div
-          ref={mapRef}
-          className="relative aspect-square w-full
-            max-w-[900px]
-            h-auto
-            overflow-hidden rounded-xl2 bg-black/30"
-                >
-          <img
-            src="/maps/mirage.png"
-            alt="Mirage overview"
-            className="absolute inset-0 h-full w-full object-contain select-none pointer-events-none"
-            draggable={false}
-          />
-            <GridOverlay rows={rows} cols={cols} show={showGrid} />
-          </div>
-        </div>
-
-        {/* ADMIN PANEL (Konami) */}
-        {showAdmin && (
-          <div className="mt-3 rounded-xl2 border border-border/60 bg-card/40 p-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="text-sm font-semibold">Mode admin (placement)</div>
-                <div className="text-xs text-muted/80">
-                  Konami: ↑ ↑ ↓ ↓ ← → ← → pour afficher/masquer
+                  <GridOverlay rows={rows} cols={cols} show={showGrid} />
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowGrid((v) => !v)}
-                  className="rounded-lg border border-border/60 bg-card/40 px-3 py-1.5 text-xs hover:bg-card/60 transition"
-                >
-                  {showGrid ? "Masquer grille" : "Afficher grille"}
-                </button>
+      {/* ADMIN DRAWER (apparait seulement via Konami) */}
+      {showAdmin && (
+        <div className="fixed inset-0 z-[999]">
+          {/* backdrop */}
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setShowAdmin(false)}
+            aria-label="Fermer admin"
+          />
 
-                <button
-                  type="button"
-                  onClick={() => setDebugCoords((v) => !v)}
-                  className="rounded-lg border border-border/60 bg-card/40 px-3 py-1.5 text-xs hover:bg-card/60 transition"
-                >
-                  {debugCoords ? "Debug: ON" : "Debug: OFF"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowAdmin(false)}
-                  className="rounded-lg border border-border/60 bg-card/40 px-3 py-1.5 text-xs hover:bg-card/60 transition"
-                  title="Masquer le panneau admin"
-                >
-                  Fermer
-                </button>
-              </div>
+          {/* panel */}
+          <div className="absolute right-0 top-0 h-full w-full sm:w-[520px] bg-black/80 backdrop-blur border-l border-white/10">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+              <div className="text-sm font-semibold text-white/90">Admin • Placement</div>
+              <button
+                type="button"
+                className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
+                onClick={() => setShowAdmin(false)}
+              >
+                Fermer
+              </button>
             </div>
 
-            <PlacementTool
-              mapRef={mapRef}
-              rows={rows}
-              cols={cols}
-              enabledFromParent={debugCoords}
-              fitMode="contain"
-              imageAspect={1}
-              defaultStuffId="new-stuff"
-              defaultTitle="New lineup"
-              defaultType="smoke"
-            />
+            {/* toggles */}
+            <div className="px-4 py-3 flex flex-wrap gap-2 border-b border-white/10">
+              <button
+                type="button"
+                onClick={() => setShowGrid((v) => !v)}
+                className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
+              >
+                {showGrid ? "Masquer grille" : "Afficher grille"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDebugCoords((v) => !v)}
+                className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
+              >
+                {debugCoords ? "Debug: ON" : "Debug: OFF"}
+              </button>
+            </div>
+
+            {/* scrollable content */}
+            <div className="h-[calc(100%-96px)] overflow-auto p-4">
+              <PlacementTool
+                mapRef={mapRef}
+                rows={rows}
+                cols={cols}
+                enabledFromParent={debugCoords}
+                fitMode="contain"
+                imageAspect={1}
+                defaultStuffId="new-stuff"
+                defaultTitle="New lineup"
+                defaultType="smoke"
+              />
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+    </div>
   );
 }
