@@ -245,10 +245,6 @@ export default function Mirage() {
               </button>
             )}
 
-            const displayThrow = selectedLineup
-            ? clampPctPoint(selectedLineup.throw, mapSize.w, mapSize.h, PLAYER_SIZE)
-            : null;
-
             {/* Markers (filtered) */}
             {visibleLineups.map((l) => {
               const isSelected = l.lineupId === selectedId;
@@ -260,6 +256,10 @@ export default function Mirage() {
               const [hoveredId, setHoveredId] = useState<string | null>(null);
               const [tooltipSide, setTooltipSide] = useState<"top" | "bottom">("top");
               const [brokenPreview, setBrokenPreview] = useState<Record<string, boolean>>({});
+
+              const displayThrow = selectedLineup
+              ? clampPctPoint(selectedLineup.throw, mapSize.w, mapSize.h, PLAYER_SAFE_HALF)
+              : null;
 
               return (
               <button
