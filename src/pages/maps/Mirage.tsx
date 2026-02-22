@@ -188,6 +188,10 @@ export default function Mirage() {
       return { x: (xPx / w) * 100, y: (yPx / h) * 100 };
     };
 
+    const displayThrow = selectedLineup
+    ? clampPctPoint(selectedLineup.throw, mapSize.w, mapSize.h, PLAYER_SAFE_HALF)
+    : null;
+
   return (
     <>
       {/* MAP full-fit under topbar */}
@@ -256,10 +260,6 @@ export default function Mirage() {
               const [hoveredId, setHoveredId] = useState<string | null>(null);
               const [tooltipSide, setTooltipSide] = useState<"top" | "bottom">("top");
               const [brokenPreview, setBrokenPreview] = useState<Record<string, boolean>>({});
-
-              const displayThrow = selectedLineup
-              ? clampPctPoint(selectedLineup.throw, mapSize.w, mapSize.h, PLAYER_SAFE_HALF)
-              : null;
 
               return (
               <button
