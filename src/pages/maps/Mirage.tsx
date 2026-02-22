@@ -1,12 +1,21 @@
 import { useRef, useState } from "react";
 import GridOverlay from "../../components/GridOverlay";
 import PlacementTool from "../../components/PlacementTool";
+import { mirageLineups } from "../../data/mirageLineups";
 
 export default function Mirage() {
   const cols = 26; // A..Z
   const rows = 20; // 1..20
 
-  const mapRef = useRef<HTMLDivElement>(null);
+ const mapRef = useRef<HTMLDivElement>(null);
+
+  const ICONS = {
+    smoke: "icons/ct-smoke.svg",
+    flash: "icons/flash.svg",
+    molotov: "icons/molotov.svg",
+    he: "icons/he.svg",
+    player: "icons/player.svg",
+} as const;
 
   const [showGrid, setShowGrid] = useState(true);
   const [debugCoords, setDebugCoords] = useState(true);
@@ -62,11 +71,35 @@ export default function Mirage() {
             />
 
             <GridOverlay rows={rows} cols={cols} show={showGrid} />
+
+            {mirageLineups.map((l) => (
+              <div key={l.lineupId}>
+                {/* RESULT ICON */}
+                <img
+                  src={ICONS[l.type]}
+                  alt=""
+                  className="absolute -translate-x-1/2 -translate-y-1/2 drop-shadow pointer-events-none"
+                  style={{ left: `${l.result.x}%`, top: `${l.result.y}%`, width: 28, height: 28 }}
+                  draggable={false}
+                />
+
+                {/* THROW PLAYER ICON */}
+                <img
+                  src={ICONS.player}
+                  alt=""
+                  className="absolute -translate-x-1/2 -translate-y-1/2 drop-shadow pointer-events-none"
+                  style={{ left: `${l.throw.x}%`, top: `${l.throw.y}%`, width: 28, height: 28 }}
+                  draggable={false}
+                />
+              </div>
+            ))}
+
+
           </div>
 
           {/* PANEL DROIT */}
           <div className="rounded-xl2 border border-border/50 bg-card/40 p-3 lg:sticky lg:top-24 h-fit">
-            <PlacementTool
+            {/* <PlacementTool
               mapRef={mapRef}
               rows={rows}
               cols={cols}
@@ -74,7 +107,7 @@ export default function Mirage() {
               defaultStuffId="new-stuff"
               defaultTitle="New lineup"
               defaultType="smoke"
-            />
+            /> */}
           </div>
         </div>
 
