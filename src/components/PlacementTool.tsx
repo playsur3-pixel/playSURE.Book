@@ -1,17 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { pctToGrid } from "./GridOverlay";
+import { pctToGrid } from "../components/GridOverlay";
 
 type Point = { x: number; y: number; grid: string };
 
 function clampPct(v: number) {
   return Math.min(100, Math.max(0, v));
-}
-
-function getPctFromClick(e: React.MouseEvent, el: HTMLDivElement) {
-  const rect = el.getBoundingClientRect();
-  const xPct = clampPct(((e.clientX - rect.left) / rect.width) * 100);
-  const yPct = clampPct(((e.clientY - rect.top) / rect.height) * 100);
-  return { xPct, yPct };
 }
 
 export default function PlacementTool({
@@ -22,6 +15,7 @@ export default function PlacementTool({
   defaultStuffId = "new-stuff",
   defaultTitle = "New lineup",
   onMarkersChange,
+  enabledFromParent,
 }: {
   mapRef: React.RefObject<HTMLDivElement>;
   rows: number;
@@ -30,6 +24,7 @@ export default function PlacementTool({
   defaultStuffId?: string;
   defaultTitle?: string;
   onMarkersChange?: (throwP: Point | null, resultP: Point | null) => void;
+  enabledFromParent?: boolean; // si false => aucun clic pris en compte
 }) {
   const storageKey = "playsure:miragePlacement";
 
@@ -41,12 +36,13 @@ export default function PlacementTool({
   const [throwP, setThrowP] = useState<Point | null>(null);
   const [resultP, setResultP] = useState<Point | null>(null);
 
-  // Restore session from localStorage
+  // Restore from localStorage
   useEffect(() => {
     try {
       const raw = localStorage.getItem(storageKey);
       if (!raw) return;
       const parsed = JSON.parse(raw);
+
       setEnabled(parsed.enabled ?? true);
       setType(parsed.type ?? defaultType);
       setStuffId(parsed.stuffId ?? defaultStuffId);
@@ -59,7 +55,7 @@ export default function PlacementTool({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist
+  // Persist to localStorage
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -76,27 +72,31 @@ export default function PlacementTool({
     onMarkersChange?.(throwP, resultP);
   }, [throwP, resultP, onMarkersChange]);
 
-  // Global click handler on map
+  // Click handler on map (native event, so it works even outside React tree)
   useEffect(() => {
     const el = mapRef.current;
     if (!el) return;
 
     const handler = (ev: MouseEvent) => {
+      // local toggle
       if (!enabled) return;
-      // ignore right click / non-left clicks
+      // global toggle (Debug OFF)
+      if (enabledFromParent === false) return;
+
+      // left click only
       if (ev.button !== 0) return;
 
-      // We need React coords -> use clientX/clientY from MouseEvent
       const rect = el.getBoundingClientRect();
       const xPct = clampPct(((ev.clientX - rect.left) / rect.width) * 100);
       const yPct = clampPct(((ev.clientY - rect.top) / rect.height) * 100);
+
       const x = +xPct.toFixed(2);
       const y = +yPct.toFixed(2);
       const grid = pctToGrid(xPct, yPct, rows, cols);
 
       const point: Point = { x, y, grid };
 
-      // Alt = throw position, otherwise result position
+      // ALT = throw, else result
       if (ev.altKey) {
         setThrowP(point);
         console.log("Throw (ALT+click):", point);
@@ -108,25 +108,32 @@ export default function PlacementTool({
 
     el.addEventListener("click", handler);
     return () => el.removeEventListener("click", handler);
-  }, [enabled, mapRef, rows, cols]);
+  }, [enabled, enabledFromParent, mapRef, rows, cols]);
 
+  // Generate a lineupId each time stuffId changes (timestamped)
   const lineupId = useMemo(() => {
-    // lineup unique: stuffId + timestamp
-    const base = stuffId.trim() || "new-stuff";
-    return `${base}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "")}`;
+    const base = (stuffId.trim() || "new-stuff")
+      .toLowerCase()
+      .replace(/\s+/g, "-")
+      .replace(/[^a-z0-9\-]/g, "");
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "");
+    return `${base}-${stamp}`;
   }, [stuffId]);
 
   const snippet = useMemo(() => {
     if (!throwP || !resultP) return null;
 
+    const safeStuffId = (stuffId || "new-stuff").trim();
+    const safeTitle = (title || "New lineup").trim();
+
     return `{
   lineupId: "${lineupId}",
-  stuffId: "${stuffId}",
-  title: "${title}",
+  stuffId: "${safeStuffId}",
+  title: "${safeTitle}",
   type: "${type}",
   result: { x: ${resultP.x}, y: ${resultP.y} },
   throw: { x: ${throwP.x}, y: ${throwP.y} },
-  previewImg: "/previews/mirage/${stuffId}.jpg",
+  previewImg: "/previews/mirage/${safeStuffId}.jpg",
 },`;
   }, [throwP, resultP, lineupId, stuffId, title, type]);
 
@@ -136,7 +143,7 @@ export default function PlacementTool({
       await navigator.clipboard.writeText(snippet);
       console.log("✅ Snippet copied to clipboard");
     } catch {
-      console.log("❌ Clipboard blocked, copy manually.");
+      console.log("❌ Clipboard blocked, copy manually from the panel.");
     }
   }
 
@@ -153,13 +160,18 @@ export default function PlacementTool({
   }
 
   return (
-    <div className="mt-3 rounded-xl2 border border-border/60 bg-card/40 p-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-3">
+      <div className="flex items-start justify-between gap-2">
         <div>
           <div className="text-sm font-semibold">Mode placement</div>
           <div className="text-xs text-muted/80">
-            ALT+clic = position lancer • clic = position arrivée • {cols}×{rows}
+            ALT+clic = lancer • clic = arrivée • {cols}×{rows}
           </div>
+          {enabledFromParent === false && (
+            <div className="mt-1 text-[11px] text-amber-300/90">
+              Debug OFF : les clics sur la map sont ignorés.
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -176,7 +188,7 @@ export default function PlacementTool({
             onClick={resetPoints}
             type="button"
           >
-            Reset points
+            Reset
           </button>
 
           <button
@@ -189,7 +201,7 @@ export default function PlacementTool({
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2">
         <label className="grid gap-1">
           <span className="text-xs text-muted">stuffId</span>
           <input
@@ -225,25 +237,21 @@ export default function PlacementTool({
         </label>
       </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2">
         <div className="rounded-lg border border-border/60 bg-black/20 p-2">
           <div className="text-xs text-muted">Throw (ALT+clic)</div>
-          <div className="text-sm">
-            {throwP ? `${throwP.grid} • x:${throwP.x} y:${throwP.y}` : "—"}
-          </div>
+          <div className="text-sm">{throwP ? `${throwP.grid} • x:${throwP.x} y:${throwP.y}` : "—"}</div>
         </div>
 
         <div className="rounded-lg border border-border/60 bg-black/20 p-2">
           <div className="text-xs text-muted">Result (clic)</div>
-          <div className="text-sm">
-            {resultP ? `${resultP.grid} • x:${resultP.x} y:${resultP.y}` : "—"}
-          </div>
+          <div className="text-sm">{resultP ? `${resultP.grid} • x:${resultP.x} y:${resultP.y}` : "—"}</div>
         </div>
       </div>
 
-      <div className="mt-3 rounded-lg border border-border/60 bg-black/20 p-2">
+      <div className="rounded-lg border border-border/60 bg-black/20 p-2">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-xs text-muted">Snippet à coller dans mirageLineups.ts</div>
+          <div className="text-xs text-muted">Snippet à coller dans ton fichier data</div>
           <button
             type="button"
             onClick={copySnippet}
@@ -255,7 +263,7 @@ export default function PlacementTool({
         </div>
 
         <pre className="mt-2 whitespace-pre-wrap text-xs text-white/80">
-          {snippet ?? "Définis les deux points (ALT+clic + clic) pour générer le snippet."}
+          {snippet ?? "Définis les 2 points (ALT+clic + clic) pour générer le snippet."}
         </pre>
       </div>
     </div>
