@@ -149,7 +149,9 @@ export default function Mirage() {
     ? mirageLineups.find((l) => l.lineupId === selectedId) ?? null
     : null;
   // ajout pour décaler le player et éviter qu'il soit coupé sur les bords de la map
-    const PLAYER_SIZE = 60; // ta taille player
+    const PLAYER_SIZE = 60;
+    const PLAYER_HOVER_SCALE = 1.1; // hover:scale-110
+    const PLAYER_SAFE_HALF = (PLAYER_SIZE * PLAYER_HOVER_SCALE) / 2 + 2; // +2px de marge
 
     const [mapSize, setMapSize] = useState({ w: 0, h: 0 });
 
@@ -170,19 +172,25 @@ export default function Mirage() {
     // fin ajout
     const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
-    const clampPctPoint = (p: { x: number; y: number }, w: number, h: number, sizePx: number) => {
+    const clampPctPoint = (
+      p: { x: number; y: number },
+      w: number,
+      h: number,
+      safeHalfPx: number
+    ) => {
       if (!w || !h) return p;
 
-      const half = sizePx / 2;
-      const xPx = clamp((p.x / 100) * w, half, w - half);
-      const yPx = clamp((p.y / 100) * h, half, h - half);
+      const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
+      const xPx = clamp((p.x / 100) * w, safeHalfPx, w - safeHalfPx);
+      const yPx = clamp((p.y / 100) * h, safeHalfPx, h - safeHalfPx);
 
       return { x: (xPx / w) * 100, y: (yPx / h) * 100 };
     };
 
-    const displayThrow = selectedLineup
-  ? clampPctPoint(selectedLineup.throw, mapSize.w, mapSize.h, PLAYER_SIZE)
-  : null;
+      const displayThrow = selectedLineup
+      ? clampPctPoint(selectedLineup.throw, mapSize.w, mapSize.h, PLAYER_SAFE_HALF)
+      : null;
 
   return (
     <>
@@ -225,31 +233,22 @@ export default function Mirage() {
 
             {/* Arrow + Player when selected */}
             {selectedLineup && displayThrow && (
-            <>
-              <ArrowOverlay from={displayThrow} to={selectedLineup.result} />
-
               <button
                 type="button"
                 className="absolute -translate-x-1/2 -translate-y-1/2 z-20"
-                style={{
-                  left: `${displayThrow.x}%`,
-                  top: `${displayThrow.y}%`,
-                }}
-                title="Position de lancer"
+                style={{ left: `${displayThrow.x}%`, top: `${displayThrow.y}%`, width: PLAYER_SIZE, height: PLAYER_SIZE }}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               >
                 <img
-                  src={PLAYER_ICON.src /* ou ICONS.player si tu utilises encore ICONS */}
+                  src={PLAYER_ICON.src /* ou ICONS.player.src */}
                   alt=""
                   draggable={false}
-                  style={{ width: PLAYER_SIZE, height: PLAYER_SIZE }}
-                  className="drop-shadow transition-transform hover:scale-110"
+                  className="w-full h-full object-contain drop-shadow transition-transform hover:scale-110"
                 />
               </button>
-              </>
-            )
-            }
+            )}
+
             const displayThrow = selectedLineup
             ? clampPctPoint(selectedLineup.throw, mapSize.w, mapSize.h, PLAYER_SIZE)
             : null;
