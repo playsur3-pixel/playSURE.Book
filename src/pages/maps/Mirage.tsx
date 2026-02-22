@@ -114,13 +114,13 @@ export default function Mirage() {
             </div>
 
             {/* Layer 2: overlays non interactifs */}
-            <div className="absolute inset-0 z-20 pointer-events-none">
+            <div className="absolute inset-0 z-50 pointer-events-auto outline outline-2 outline-red-500">
               <GridOverlay rows={rows} cols={cols} show={showGrid} />
               {selectedLineup && <ArrowOverlay from={selectedLineup.throw} to={selectedLineup.result} />}
             </div>
 
             {/* Layer 3: interaction (TOUT ce qui est cliquable/hover) */}
-            <div className="absolute inset-0 z-50 pointer-events-auto">
+            <div className="absolute inset-0 z-50 pointer-events-auto outline outline-2 outline-blue-500">
               {/* Player (uniquement si sélection) */}
               {selectedLineup && (
                 <button
