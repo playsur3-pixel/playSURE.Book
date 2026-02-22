@@ -10,11 +10,11 @@ export default function Mirage() {
  const mapRef = useRef<HTMLDivElement>(null);
 
   const ICONS = {
-    smoke: "icons/ct-smoke.svg",
-    flash: "icons/flash.svg",
-    molotov: "icons/molotov.svg",
-    he: "icons/he.svg",
-    player: "icons/player.svg",
+    smoke: "/icones/ct-smoke.svg",
+    flash: "/icones/flash.svg",
+    molotov: "/icones/molotov.svg",
+    he: "/icones/he.svg",
+    player: "/icones/player.svg",
 } as const;
 
   const [showGrid, setShowGrid] = useState(true);
