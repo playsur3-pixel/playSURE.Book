@@ -25,20 +25,18 @@ export default function Mirage() {
         </div>
       </div>
 
-      <div className="mt-5 rounded-xl2 border border-border/60 bg-black/20 p-3">
-        {/* MAP */}
+      <div className="w-full max-w-5xl mx-auto">
         <div
           ref={mapRef}
-          className="relative w-full h-[72vh] overflow-hidden rounded-xl2 border border-border/50 bg-black/30"
+          className="relative w-full aspect-square overflow-hidden rounded-xl2 border border-border/50 bg-black/30"
         >
           <img
-            src="/maps/mirage_x2.png"
-            srcSet="/maps/mirage_x2.png"
+            src="/maps/mirage.png"
+            srcSet="/maps/mirage_x2.png 2x"
             alt="Mirage overview"
-            className="absolute inset-0 h-full w-full object-contain origin-center select-none pointer-events-none"
+            className="absolute inset-0 h-full w-full object-contain select-none pointer-events-none"
             draggable={false}
           />
-
           <GridOverlay rows={rows} cols={cols} show={showGrid} />
         </div>
 
