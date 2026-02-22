@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="HE grenade icon">
+  <defs>
+    <style>
+      :root{
+        --body:#2F3A43;
+        --body2:#202A31;
+        --metal:#B9C2CB;
+        --stroke:#0D1115;
+        --blast1:#FFD18A;
+        --blast2:#FF8A2A;
+      }
+    </style>
+    <radialGradient id="blast" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="var(--blast1)"/>
+      <stop offset="100%" stop-color="var(--blast2)"/>
+    </radialGradient>
+    <filter id="shadow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#shadow)" stroke="var(--stroke)" stroke-width="8" stroke-linejoin="round" stroke-linecap="round">
+    <!-- small blast behind -->
+    <path fill="url(#blast)" d="
+      M188 84
+      C204 84 216 96 216 112
+      C216 126 206 136 192 140
+      C188 154 172 162 160 154
+      C150 164 132 162 126 150
+      C112 146 104 134 104 120
+      C104 104 116 92 132 92
+      C138 78 154 70 168 76
+      C174 86 180 84 188 84
+      Z" opacity="0.95"/>
+
+    <!-- grenade body -->
+    <path fill="var(--body)" d="M86 112 C86 86 106 66 132 66 C158 66 178 86 178 112 V160 C178 194 156 214 132 214 C108 214 86 194 86 160 Z"/>
+    <path fill="var(--body2)" d="M132 66 C158 66 178 86 178 112 V160 C178 194 156 214 132 214 Z" opacity="0.55"/>
+
+    <!-- grooves -->
+    <path d="M96 128 H168" opacity="0.35"/>
+    <path d="M96 148 H168" opacity="0.35"/>
+    <path d="M96 168 H168" opacity="0.35"/>
+
+    <!-- top cap -->
+    <path fill="var(--metal)" d="M112 52 H152 V76 H112 Z"/>
+    <path fill="var(--metal)" d="M104 76 H160 V98 H104 Z"/>
+
+    <!-- pin ring -->
+    <circle cx="170" cy="76" r="14" fill="none"/>
+    <path d="M158 76 H138" />
+  </g>
+</svg>
