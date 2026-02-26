@@ -23,7 +23,7 @@ export default function Home() {
   return (
     <div className="grid gap-4">
       <div className="rounded-xl2 border border-border bg-card/60 p-6 shadow-soft backdrop-blur">
-        <h2 className="text-lg font-semibold">playSURE Book</h2>
+        <h2 className="text-lg font-semibold">Dark Games Book</h2>
       </div>
       <AvailabilityGrid username={username} />
     </div>

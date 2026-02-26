@@ -4,43 +4,48 @@ import { MAPS } from "@/config/maps";
 
 
 function Dropdown({
-  label,
+  name,
   basePath,
 }: {
-  label: string;
+  name: string;
   basePath: "/strats" | "/stuffs";
 }) {
-  const nav = useNavigate();
-  const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
 
   return (
-    <div className="relative" onMouseLeave={() => setOpen(false)}>
+    <div className="relative group">
+      {/* Bouton */}
       <button
         type="button"
-        className="rounded-xl px-3 py-1.5 text-sm transition text-muted hover:text-white hover:bg-white/5"
-        onMouseEnter={() => setOpen(true)}
-        onClick={() => setOpen((v) => !v)}
+        className="px-3 py-2 rounded-lg hover:bg-white/5 text-sm"
       >
-        {label}
+        {name}
       </button>
 
-      {open && (
-        <div className="absolute left-0 mt-2 w-44 overflow-hidden rounded-xl border border-border bg-bg/90 backdrop-blur shadow-soft z-50">
+      {/* Zone tampon invisible pour éviter le “gap” */}
+      <div className="absolute left-0 top-full h-3 w-52 hidden group-hover:block" />
+
+      {/* Menu */}
+      <div
+        className="
+          absolute left-0 top-full pt-2
+          hidden group-hover:block
+          z-50
+        "
+      >
+        <div className="w-44 rounded-xl border border-white/10 bg-black/80 backdrop-blur shadow-soft overflow-hidden">
           {MAPS.map((m) => (
             <button
               key={m.key}
               type="button"
-              className="w-full text-left px-3 py-2 text-sm text-white/90 hover:bg-white/10"
-              onClick={() => {
-                setOpen(false);
-                nav(`${basePath}/${m.key}`);
-              }}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-white/10"
+              onClick={() => navigate(`${basePath}/${m.key}`)}
             >
               {m.name}
             </button>
           ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -66,8 +71,8 @@ export function Topbar({ username, onLogout }: { username: string; onLogout: () 
             Accueil
           </NavLink>
 
-          <Dropdown label="Strats" basePath="/strats" />
-          <Dropdown label="Stuffs" basePath="/stuffs" />
+          <Dropdown name="Strats" basePath="/strats" />
+          <Dropdown name="Stuffs" basePath="/stuffs" />
         </nav>
 
         <div className="flex items-center gap-3">
