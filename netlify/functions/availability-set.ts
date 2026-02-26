@@ -2,7 +2,6 @@ import type { Handler } from "@netlify/functions";
 import { connectLambda, getStore } from "@netlify/blobs";
 import jwt from "jsonwebtoken";
 import { getCookie, json } from "./_utils";
-import whitelist from "./whitelist.json";
 
 const COOKIE_NAME = process.env.AUTH_COOKIE_NAME || "playsure_token";
 const JWT_SECRET = process.env.AUTH_JWT_SECRET || "dev-secret";
@@ -22,7 +21,7 @@ type UserFile = {
 type Slot = { a: string[] };
 
 function norm(s: string) {
-  return s.trim().toLowerCase();
+  return String(s || "").trim().toLowerCase();
 }
 
 function normUserKey(name: string) {
@@ -51,51 +50,28 @@ function toStringArray(input: unknown): string[] {
   return input.map((x) => String(x).trim()).filter((s) => s.length > 0);
 }
 
-function readWhitelist() {
-  const usersRaw = (whitelist as any)?.users;
-
-  if (Array.isArray(usersRaw)) {
-    const users = usersRaw
-      .map((u: any) => ({
-        name: String(u?.name ?? "").trim(),
-        role: String(u?.role ?? "player").trim(),
-      }))
-      .filter((u: any) => u.name);
-
-    const allowed = users.map((u: any) => u.name);
-
-    const roles: Record<string, string> = {};
-    for (const u of users) roles[norm(u.name)] = norm(u.role || "player");
-
-    return { allowed, roles };
-  }
-
-  const allowed = Array.isArray((whitelist as any)?.allowed)
-    ? (whitelist as any).allowed.map((x: any) => String(x).trim()).filter(Boolean)
-    : [];
-
-  const rolesObj = ((whitelist as any)?.roles ?? {}) as Record<string, any>;
-  const roles: Record<string, string> = {};
-  for (const [k, v] of Object.entries(rolesObj)) roles[norm(k)] = norm(String(v));
-  for (const u of allowed) if (!roles[norm(u)]) roles[norm(u)] = "player";
-
-  return { allowed, roles };
+async function listUserFiles(store: any): Promise<string[]> {
+  const res = await (store as any).list?.({ prefix: "availability/users/" }).catch(() => null);
+  const blobs = (res?.blobs || res?.items || res || []) as any[];
+  const keys = blobs
+    .map((b: any) => String(b?.key ?? b?.name ?? b ?? ""))
+    .filter((k) => k.startsWith("availability/users/") && k.endsWith(".json"));
+  return Array.from(new Set(keys));
 }
 
-async function computeSlot(store: any, slotKey: string, allowedUsers: string[]): Promise<Slot> {
+async function computeSlot(store: any, slotKey: string): Promise<Slot> {
   const a: string[] = [];
-
-  for (const u of allowedUsers) {
-    const key = userBlobKey(u);
+  const keys = await listUserFiles(store);
+  for (const key of keys) {
     const uf = (await store.get(key, { type: "json" }).catch(() => null)) as any;
     if (!uf) continue;
-
+    const display = String(uf.user || "").trim();
+    if (!display) continue;
     const avail = toStringArray(uf.available).filter(isValidSlotKey);
-    if (avail.includes(slotKey)) a.push(String(uf.user || u));
+    if (avail.includes(slotKey)) a.push(display);
   }
-
   a.sort((x, y) => x.localeCompare(y, "fr"));
-  return { a };
+  return { a: Array.from(new Set(a)) };
 }
 
 export const handler: Handler = async (event) => {
@@ -130,15 +106,7 @@ export const handler: Handler = async (event) => {
     if (typeof available !== "boolean") return json(400, { error: "Missing available boolean" });
     if (!isValidSlotKey(slotKey)) return json(400, { error: "Invalid slotKey" });
 
-    const { allowed } = readWhitelist();
-    const allowedSet = new Set(allowed.map(norm));
-
-    if (!allowedSet.has(norm(username))) {
-      return json(403, { error: "User not whitelisted" });
-    }
-
-    // Canonical display name (garde la casse de whitelist)
-    const displayName = allowed.find((u: string) => norm(u) === norm(username)) || username;
+    const displayName = username; // on garde la casse du username stocké dans le token
 
     const store = getStore(STORE_NAME);
 
@@ -166,7 +134,7 @@ export const handler: Handler = async (event) => {
 
     await store.setJSON(key, file);
 
-    const slot = await computeSlot(store, slotKey, allowed);
+    const slot = await computeSlot(store, slotKey);
 
     return json(200, { ok: true, slotKey, slot, updatedAt: file.updatedAt, store: STORE_NAME });
   } catch (e: any) {
