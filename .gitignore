@@ -50,6 +50,7 @@ dist-ssr/
 netlify/.cache/
 netlify/functions/.cache/
 netlify/functions/whitelist.json
+**/whitelist.json
 
 # If you have local env files
 .env

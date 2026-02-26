@@ -2,6 +2,7 @@ import type { Handler } from "@netlify/functions";
 import { connectLambda, getStore } from "@netlify/blobs";
 import bcrypt from "bcryptjs";
 import { json } from "./_utils";
+import { upsertWhitelistUser } from "./_whitelist";
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
 
@@ -54,6 +55,9 @@ export const handler: Handler = async (event) => {
     };
 
     await store.setJSON(usersKey, users);
+
+    // ✅ Auto-whitelist (stored in Netlify Blobs)
+    await upsertWhitelistUser(event, pseudo, role);
 
     return json(200, { ok: true, username: pseudo, role });
   } catch (e: any) {
