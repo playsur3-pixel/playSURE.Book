@@ -1,15 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { MAPS } from "@/config/maps";
 
-const MAPS = [
-  { name: "Mirage", key: "mirage" },
-  { name: "Inferno", key: "inferno" },
-  { name: "Dust2", key: "dust2" },
-  { name: "Nuke", key: "nuke" },
-  { name: "Overpass", key: "overpass" },
-  { name: "Ancient", key: "ancient" },
-  { name: "Anubis", key: "anubis" },
-];
 
 function Dropdown({
   label,
