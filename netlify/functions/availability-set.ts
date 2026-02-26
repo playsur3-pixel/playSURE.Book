@@ -2,7 +2,7 @@ import type { Handler } from "@netlify/functions";
 import { connectLambda, getStore } from "@netlify/blobs";
 import jwt from "jsonwebtoken";
 import { getCookie, json } from "./_utils";
-import { readWhitelist } from "./_whitelist";
+import whitelist from "./whitelist.json";
 
 const COOKIE_NAME = process.env.AUTH_COOKIE_NAME || "playsure_token";
 const JWT_SECRET = process.env.AUTH_JWT_SECRET || "dev-secret";
@@ -51,6 +51,36 @@ function toStringArray(input: unknown): string[] {
   return input.map((x) => String(x).trim()).filter((s) => s.length > 0);
 }
 
+function readWhitelist() {
+  const usersRaw = (whitelist as any)?.users;
+
+  if (Array.isArray(usersRaw)) {
+    const users = usersRaw
+      .map((u: any) => ({
+        name: String(u?.name ?? "").trim(),
+        role: String(u?.role ?? "player").trim(),
+      }))
+      .filter((u: any) => u.name);
+
+    const allowed = users.map((u: any) => u.name);
+
+    const roles: Record<string, string> = {};
+    for (const u of users) roles[norm(u.name)] = norm(u.role || "player");
+
+    return { allowed, roles };
+  }
+
+  const allowed = Array.isArray((whitelist as any)?.allowed)
+    ? (whitelist as any).allowed.map((x: any) => String(x).trim()).filter(Boolean)
+    : [];
+
+  const rolesObj = ((whitelist as any)?.roles ?? {}) as Record<string, any>;
+  const roles: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rolesObj)) roles[norm(k)] = norm(String(v));
+  for (const u of allowed) if (!roles[norm(u)]) roles[norm(u)] = "player";
+
+  return { allowed, roles };
+}
 
 async function computeSlot(store: any, slotKey: string, allowedUsers: string[]): Promise<Slot> {
   const a: string[] = [];
@@ -100,8 +130,7 @@ export const handler: Handler = async (event) => {
     if (typeof available !== "boolean") return json(400, { error: "Missing available boolean" });
     if (!isValidSlotKey(slotKey)) return json(400, { error: "Invalid slotKey" });
 
-    const wl = await readWhitelist(event);
-    const allowed = wl.users.map(u => u.name).filter(Boolean);
+    const { allowed } = readWhitelist();
     const allowedSet = new Set(allowed.map(norm));
 
     if (!allowedSet.has(norm(username))) {

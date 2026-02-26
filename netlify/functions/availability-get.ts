@@ -1,7 +1,7 @@
 import type { Handler } from "@netlify/functions";
 import { connectLambda, getStore } from "@netlify/blobs";
 import { json } from "./_utils";
-import { readWhitelist } from "./_whitelist";
+import whitelist from "./whitelist.json";
 
 const STORE_NAME = process.env.AVAILABILITY_STORE || "playsure-schedule";
 
@@ -48,6 +48,45 @@ function toStringArray(input: unknown): string[] {
   return input.map((x) => String(x).trim()).filter((s) => s.length > 0);
 }
 
+/**
+ * Supporte:
+ * - Nouveau format: { users: [ { name, role } ] }
+ * - Ancien format: { allowed: [...], roles: {...} }
+ */
+function readWhitelist() {
+  const usersRaw = (whitelist as any)?.users;
+
+  // ✅ Nouveau format
+  if (Array.isArray(usersRaw)) {
+    const users = usersRaw
+      .map((u: any) => ({
+        name: String(u?.name ?? "").trim(),
+        role: String(u?.role ?? "player").trim(),
+      }))
+      .filter((u: any) => u.name);
+
+    const allowed = users.map((u: any) => u.name);
+
+    const roles: Record<string, string> = {};
+    for (const u of users) {
+      roles[norm(u.name)] = norm(u.role || "player");
+    }
+
+    return { allowed, roles };
+  }
+
+  // ✅ Fallback ancien format
+  const allowed = Array.isArray((whitelist as any)?.allowed)
+    ? (whitelist as any).allowed.map((x: any) => String(x).trim()).filter(Boolean)
+    : [];
+
+  const rolesObj = ((whitelist as any)?.roles ?? {}) as Record<string, any>;
+  const roles: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rolesObj)) roles[norm(k)] = norm(String(v));
+  for (const u of allowed) if (!roles[norm(u)]) roles[norm(u)] = "player";
+
+  return { allowed, roles };
+}
 
 export const handler: Handler = async (event) => {
   connectLambda(event as any);
@@ -56,11 +95,7 @@ export const handler: Handler = async (event) => {
     if (event.httpMethod !== "GET") return json(405, { error: "Method Not Allowed" });
 
     const store = getStore(STORE_NAME);
-
-    const wl = await readWhitelist(event);
-    const allowed = wl.users.map(u => u.name).filter(Boolean);
-    const roles: Record<string, string> = {};
-    for (const u of wl.users) roles[norm(u.name)] = norm(u.role || "player");
+    const { allowed, roles } = readWhitelist();
 
     const slots: Record<string, Slot> = {};
     let latest = 0;

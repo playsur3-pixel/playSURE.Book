@@ -353,7 +353,7 @@ export default function Mirage() {
                 </button>
                 </>
             )}  
-            {/* je fais un comment pour recommit */}
+
             {/* Markers (filtered) */}
             {visibleLineups.map((l) => {
               const isSelected = l.lineupId === selectedId;
