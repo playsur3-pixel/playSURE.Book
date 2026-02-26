@@ -23,12 +23,8 @@ export default function Home() {
   return (
     <div className="grid gap-4">
       <div className="rounded-xl2 border border-border bg-card/60 p-6 shadow-soft backdrop-blur">
-        <h2 className="text-lg font-semibold">Accueil</h2>
-        <p className="mt-2 text-sm text-muted">
-          Planning de disponibilités (17h → 23h) sur 4 semaines.
-        </p>
+        <h2 className="text-lg font-semibold">playSURE Book</h2>
       </div>
-
       <AvailabilityGrid username={username} />
     </div>
   );
