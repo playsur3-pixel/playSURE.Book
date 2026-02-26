@@ -2,7 +2,6 @@ import type { Handler } from "@netlify/functions";
 import { connectLambda, getStore } from "@netlify/blobs";
 import jwt from "jsonwebtoken";
 import { getCookie, json } from "./_utils";
-import whitelist from "./whitelist.json";
 
 const COOKIE_NAME = process.env.AUTH_COOKIE_NAME || "playsure_token";
 const JWT_SECRET = process.env.AUTH_JWT_SECRET || "dev-secret";
@@ -20,6 +19,8 @@ type UserFile = {
 };
 
 type Slot = { a: string[] };
+
+type UsersDb = Record<string, { username: string; role?: string }>; 
 
 function norm(s: string) {
   return s.trim().toLowerCase();
@@ -49,37 +50,6 @@ function isValidSlotKey(slotKey: string): boolean {
 function toStringArray(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
   return input.map((x) => String(x).trim()).filter((s) => s.length > 0);
-}
-
-function readWhitelist() {
-  const usersRaw = (whitelist as any)?.users;
-
-  if (Array.isArray(usersRaw)) {
-    const users = usersRaw
-      .map((u: any) => ({
-        name: String(u?.name ?? "").trim(),
-        role: String(u?.role ?? "player").trim(),
-      }))
-      .filter((u: any) => u.name);
-
-    const allowed = users.map((u: any) => u.name);
-
-    const roles: Record<string, string> = {};
-    for (const u of users) roles[norm(u.name)] = norm(u.role || "player");
-
-    return { allowed, roles };
-  }
-
-  const allowed = Array.isArray((whitelist as any)?.allowed)
-    ? (whitelist as any).allowed.map((x: any) => String(x).trim()).filter(Boolean)
-    : [];
-
-  const rolesObj = ((whitelist as any)?.roles ?? {}) as Record<string, any>;
-  const roles: Record<string, string> = {};
-  for (const [k, v] of Object.entries(rolesObj)) roles[norm(k)] = norm(String(v));
-  for (const u of allowed) if (!roles[norm(u)]) roles[norm(u)] = "player";
-
-  return { allowed, roles };
 }
 
 async function computeSlot(store: any, slotKey: string, allowedUsers: string[]): Promise<Slot> {
@@ -130,15 +100,18 @@ export const handler: Handler = async (event) => {
     if (typeof available !== "boolean") return json(400, { error: "Missing available boolean" });
     if (!isValidSlotKey(slotKey)) return json(400, { error: "Invalid slotKey" });
 
-    const { allowed } = readWhitelist();
-    const allowedSet = new Set(allowed.map(norm));
+    // Source de vérité: users.json (créé via admin_init_player)
+    const authStore = getStore("playsure-auth");
+    const rawUsers = await authStore.get("users.json", { type: "json" }).catch(() => null);
+    const users: UsersDb = (rawUsers && typeof rawUsers === "object") ? (rawUsers as UsersDb) : {};
 
-    if (!allowedSet.has(norm(username))) {
-      return json(403, { error: "User not whitelisted" });
+    const allDisplayNames = Object.values(users).map((u) => String(u.username || "").trim()).filter(Boolean);
+
+    // Canonical display name (garde la casse d'origine users.json)
+    const displayName = allDisplayNames.find((u) => norm(u) === norm(username)) || "";
+    if (!displayName) {
+      return json(403, { error: "Unknown user" });
     }
-
-    // Canonical display name (garde la casse de whitelist)
-    const displayName = allowed.find((u: string) => norm(u) === norm(username)) || username;
 
     const store = getStore(STORE_NAME);
 
@@ -166,7 +139,7 @@ export const handler: Handler = async (event) => {
 
     await store.setJSON(key, file);
 
-    const slot = await computeSlot(store, slotKey, allowed);
+    const slot = await computeSlot(store, slotKey, allDisplayNames);
 
     return json(200, { ok: true, slotKey, slot, updatedAt: file.updatedAt, store: STORE_NAME });
   } catch (e: any) {

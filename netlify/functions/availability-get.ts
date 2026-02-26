@@ -1,7 +1,6 @@
 import type { Handler } from "@netlify/functions";
 import { connectLambda, getStore } from "@netlify/blobs";
 import { json } from "./_utils";
-import whitelist from "./whitelist.json";
 
 const STORE_NAME = process.env.AVAILABILITY_STORE || "playsure-schedule";
 
@@ -17,6 +16,8 @@ type UserFile = {
   updatedAt: string;
   available: string[];
 };
+
+type UsersDb = Record<string, { username: string; role?: string }>; 
 
 function norm(s: string) {
   return s.trim().toLowerCase();
@@ -48,44 +49,10 @@ function toStringArray(input: unknown): string[] {
   return input.map((x) => String(x).trim()).filter((s) => s.length > 0);
 }
 
-/**
- * Supporte:
- * - Nouveau format: { users: [ { name, role } ] }
- * - Ancien format: { allowed: [...], roles: {...} }
- */
-function readWhitelist() {
-  const usersRaw = (whitelist as any)?.users;
-
-  // ✅ Nouveau format
-  if (Array.isArray(usersRaw)) {
-    const users = usersRaw
-      .map((u: any) => ({
-        name: String(u?.name ?? "").trim(),
-        role: String(u?.role ?? "player").trim(),
-      }))
-      .filter((u: any) => u.name);
-
-    const allowed = users.map((u: any) => u.name);
-
-    const roles: Record<string, string> = {};
-    for (const u of users) {
-      roles[norm(u.name)] = norm(u.role || "player");
-    }
-
-    return { allowed, roles };
-  }
-
-  // ✅ Fallback ancien format
-  const allowed = Array.isArray((whitelist as any)?.allowed)
-    ? (whitelist as any).allowed.map((x: any) => String(x).trim()).filter(Boolean)
-    : [];
-
-  const rolesObj = ((whitelist as any)?.roles ?? {}) as Record<string, any>;
-  const roles: Record<string, string> = {};
-  for (const [k, v] of Object.entries(rolesObj)) roles[norm(k)] = norm(String(v));
-  for (const u of allowed) if (!roles[norm(u)]) roles[norm(u)] = "player";
-
-  return { allowed, roles };
+function roleOverrideByPseudo(username: string, roleFromDb?: string) {
+  if (username === "playSURE") return "coach";
+  if (username === "Kr4toss_") return "director";
+  return (roleFromDb || "player").toLowerCase();
 }
 
 export const handler: Handler = async (event) => {
@@ -95,19 +62,30 @@ export const handler: Handler = async (event) => {
     if (event.httpMethod !== "GET") return json(405, { error: "Method Not Allowed" });
 
     const store = getStore(STORE_NAME);
-    const { allowed, roles } = readWhitelist();
+
+    // Source de vérité: users.json (créé via admin_init_player)
+    const authStore = getStore("playsure-auth");
+    const rawUsers = await authStore.get("users.json", { type: "json" }).catch(() => null);
+    const users: UsersDb = (rawUsers && typeof rawUsers === "object") ? (rawUsers as UsersDb) : {};
+
+    const allowed = Object.values(users).map((u) => String(u.username || "").trim()).filter(Boolean);
+    const roles: Record<string, string> = {};
+    for (const u of Object.values(users)) {
+      const name = String(u.username || "").trim();
+      if (!name) continue;
+      roles[norm(name)] = roleOverrideByPseudo(name, u.role);
+    }
 
     const slots: Record<string, Slot> = {};
     let latest = 0;
 
-    // ✅ C’EST ICI que va la boucle "for (const wlName of allowed)"
-    for (const wlName of allowed) {
-      const key = userBlobKey(wlName);
+    for (const displayName of allowed) {
+      const key = userBlobKey(displayName);
       const uf = (await store.get(key, { type: "json" }).catch(() => null)) as any;
       if (!uf) continue;
 
       const file = uf as UserFile;
-      const display = String(file.user || wlName);
+      const display = String(file.user || displayName);
 
       const t = Date.parse(String(file.updatedAt || ""));
       if (!Number.isNaN(t)) latest = Math.max(latest, t);
@@ -129,7 +107,6 @@ export const handler: Handler = async (event) => {
       slots,
     };
 
-    // ✅ roles: mapping avec clés en lower-case
     return json(200, { ok: true, data, roles, store: STORE_NAME });
   } catch (e: any) {
     return json(500, { error: e?.message || "Server error" });

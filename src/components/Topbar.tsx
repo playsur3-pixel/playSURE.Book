@@ -1,14 +1,57 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
+import { useState } from "react";
 
-const maps = [
-  { name: "Mirage", path: "/maps/mirage" },
-  { name: "Dust2", path: "/maps/dust2" },
-  { name: "Inferno", path: "/maps/inferno" },
-  { name: "Nuke", path: "/maps/nuke" },
-  { name: "Overpass", path: "/maps/overpass" },
-  { name: "Ancient", path: "/maps/ancient" },
-  { name: "Anubis", path: "/maps/anubis" },
+const MAPS = [
+  { name: "Mirage", key: "mirage" },
+  { name: "Inferno", key: "inferno" },
+  { name: "Dust2", key: "dust2" },
+  { name: "Nuke", key: "nuke" },
+  { name: "Overpass", key: "overpass" },
+  { name: "Ancient", key: "ancient" },
+  { name: "Anubis", key: "anubis" },
 ];
+
+function Dropdown({
+  label,
+  basePath,
+}: {
+  label: string;
+  basePath: "/strats" | "/stuffs";
+}) {
+  const nav = useNavigate();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative" onMouseLeave={() => setOpen(false)}>
+      <button
+        type="button"
+        className="rounded-xl px-3 py-1.5 text-sm transition text-muted hover:text-white hover:bg-white/5"
+        onMouseEnter={() => setOpen(true)}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {label}
+      </button>
+
+      {open && (
+        <div className="absolute left-0 mt-2 w-44 overflow-hidden rounded-xl border border-border bg-bg/90 backdrop-blur shadow-soft z-50">
+          {MAPS.map((m) => (
+            <button
+              key={m.key}
+              type="button"
+              className="w-full text-left px-3 py-2 text-sm text-white/90 hover:bg-white/10"
+              onClick={() => {
+                setOpen(false);
+                nav(`${basePath}/${m.key}`);
+              }}
+            >
+              {m.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function Topbar({ username, onLogout }: { username: string; onLogout: () => void }) {
   return (
@@ -22,29 +65,18 @@ export function Topbar({ username, onLogout }: { username: string; onLogout: () 
         <nav className="hidden items-center gap-1 md:flex">
           <NavLink
             to="/"
-            // end
             className={({ isActive }) =>
-              `rounded-xl px-3 py-1.5 text-sm transition
-              ${isActive ? "bg-white/10 text-white" : "text-muted hover:text-white hover:bg-white/5"}`
+              `rounded-xl px-3 py-1.5 text-sm transition ${
+                isActive ? "bg-white/10 text-white" : "text-muted hover:text-white hover:bg-white/5"
+              }`
             }
           >
             Accueil
           </NavLink>
 
-          {maps.map((m) => (
-            <NavLink
-              key={m.path}
-              to={m.path}
-              className={({ isActive }) =>
-                `rounded-xl px-3 py-1.5 text-sm transition
-                ${isActive ? "bg-white/10 text-white" : "text-muted hover:text-white hover:bg-white/5"}`
-              }
-            >
-              {m.name}
-            </NavLink>
-          ))}
+          <Dropdown label="Strats" basePath="/strats" />
+          <Dropdown label="Stuffs" basePath="/stuffs" />
         </nav>
-
 
         <div className="flex items-center gap-3">
           <span className="hidden text-sm text-muted sm:block">@{username}</span>
