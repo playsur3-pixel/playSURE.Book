@@ -4,7 +4,6 @@ import PlacementTool from "../../components/PlacementTool";
 import { mirageLineups } from "../../data/mirageLineups";
 import { GRENADE_ICONS, PLAYER_ICON, type GrenadeType, type GrenadeFilter } from "../../config/icons";
 
-
 function ArrowOverlay({
   from,
   to,
@@ -36,6 +35,7 @@ function ArrowOverlay({
     </svg>
   );
 }
+
 function TrajectoryOverlay({
   id,
   from,
@@ -45,7 +45,6 @@ function TrajectoryOverlay({
   from: { x: number; y: number };
   to: { x: number; y: number };
 }) {
-  // Courbe quadratique (bezier) avec un "bend" perpendiculaire
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const len = Math.hypot(dx, dy) || 1;
@@ -53,11 +52,9 @@ function TrajectoryOverlay({
   const mx = (from.x + to.x) / 2;
   const my = (from.y + to.y) / 2;
 
-  // vecteur normalisé perpendiculaire (pour la courbure)
   const nx = -dy / len;
   const ny = dx / len;
 
-  // intensité de courbure (adaptative)
   const bend = Math.min(14, Math.max(7, len * 0.18));
   const cx = mx + nx * bend;
   const cy = my + ny * bend;
@@ -73,7 +70,6 @@ function TrajectoryOverlay({
       preserveAspectRatio="none"
     >
       <defs>
-        {/* Glow léger */}
         <filter id={glowId} x="-30%" y="-30%" width="160%" height="160%">
           <feGaussianBlur stdDeviation="0.8" result="blur" />
           <feMerge>
@@ -82,7 +78,6 @@ function TrajectoryOverlay({
           </feMerge>
         </filter>
 
-        {/* Dégradé orange */}
         <linearGradient
           id={gradId}
           gradientUnits="userSpaceOnUse"
@@ -96,20 +91,11 @@ function TrajectoryOverlay({
           <stop offset="100%" stopColor="rgba(255,165,0,0.95)" />
         </linearGradient>
 
-        {/* Pointe de flèche */}
-        <marker
-          id={arrowId}
-          markerWidth="6"
-          markerHeight="6"
-          refX="5.2"
-          refY="3"
-          orient="auto"
-        >
+        <marker id={arrowId} markerWidth="6" markerHeight="6" refX="5.2" refY="3" orient="auto">
           <path d="M0,0 L6,3 L0,6 Z" fill="rgba(255,165,0,0.95)" />
         </marker>
       </defs>
 
-      {/* Trait principal (fin) */}
       <path
         d={`M ${from.x} ${from.y} Q ${cx} ${cy} ${to.x} ${to.y}`}
         fill="none"
@@ -120,7 +106,6 @@ function TrajectoryOverlay({
         filter={`url(#${glowId})`}
       />
 
-      {/* Petit "highlight" pour donner du style */}
       <path
         d={`M ${from.x} ${from.y} Q ${cx} ${cy} ${to.x} ${to.y}`}
         fill="none"
@@ -131,6 +116,7 @@ function TrajectoryOverlay({
     </svg>
   );
 }
+
 export default function Mirage() {
   const cols = 26;
   const rows = 20;
@@ -149,19 +135,13 @@ export default function Mirage() {
   const [grenadeFilter, setGrenadeFilter] = useState<GrenadeFilter>("smoke");
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  
+
+  // Tooltip side + broken previews (⚠️ DOIT être en dehors du map)
+  const [tooltipSide, setTooltipSide] = useState<"top" | "bottom">("top");
+  const [brokenPreview, setBrokenPreview] = useState<Record<string, boolean>>({});
 
   const konamiSeq = useMemo(
-    () => [
-      "ArrowUp",
-      "ArrowUp",
-      "ArrowDown",
-      "ArrowDown",
-      "ArrowLeft",
-      "ArrowRight",
-      "ArrowLeft",
-      "ArrowRight",
-    ],
+    () => ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight"],
     []
   );
 
@@ -198,13 +178,11 @@ export default function Mirage() {
     let buffer: string[] = [];
 
     const onKeyDown = (e: KeyboardEvent) => {
-      // close admin with ESC
       if (e.key === "Escape") {
         setShowAdmin(false);
         return;
       }
 
-      // ignore when typing
       const el = e.target as HTMLElement | null;
       const tag = el?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || el?.isContentEditable) return;
@@ -234,57 +212,50 @@ export default function Mirage() {
   );
 
   const visibleLineups =
-    grenadeFilter === "all"
-      ? mirageLineups
-      : mirageLineups.filter((l) => l.type === grenadeFilter);
+    grenadeFilter === "all" ? mirageLineups : mirageLineups.filter((l) => l.type === grenadeFilter);
 
-  // Keep selection even if filter changes (recommended)
-  const selectedLineup = selectedId
-    ? mirageLineups.find((l) => l.lineupId === selectedId) ?? null
-    : null;
-  // ajout pour décaler le player et éviter qu'il soit coupé sur les bords de la map
-    const PLAYER_SIZE = 60;
-    const PLAYER_HOVER_SCALE = 1.1; // hover:scale-110
-    const PLAYER_SAFE_HALF = (PLAYER_SIZE * PLAYER_HOVER_SCALE) / 2 + 2; // +2px de marge
+  // Keep selection even if filter changes
+  const selectedLineup = selectedId ? mirageLineups.find((l) => l.lineupId === selectedId) ?? null : null;
 
-    const [mapSize, setMapSize] = useState({ w: 0, h: 0 });
+  // Clamp player so it doesn't get cut on edges
+  const PLAYER_SIZE = 60;
+  const PLAYER_HOVER_SCALE = 1.1;
+  const PLAYER_SAFE_HALF = (PLAYER_SIZE * PLAYER_HOVER_SCALE) / 2 + 2;
 
-    useLayoutEffect(() => {
-      const el = mapRef.current;
-      if (!el) return;
+  const [mapSize, setMapSize] = useState({ w: 0, h: 0 });
 
-      const update = () => {
-        const r = el.getBoundingClientRect();
-        setMapSize({ w: r.width, h: r.height });
-      };
+  useLayoutEffect(() => {
+    const el = mapRef.current;
+    if (!el) return;
 
-      update();
-      const ro = new ResizeObserver(update);
-      ro.observe(el);
-      return () => ro.disconnect();
-    }, []);
-    // fin ajout
-    const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
-
-    const clampPctPoint = (
-      p: { x: number; y: number },
-      w: number,
-      h: number,
-      safeHalfPx: number
-    ) => {
-      if (!w || !h) return p;
-
-      const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
-
-      const xPx = clamp((p.x / 100) * w, safeHalfPx, w - safeHalfPx);
-      const yPx = clamp((p.y / 100) * h, safeHalfPx, h - safeHalfPx);
-
-      return { x: (xPx / w) * 100, y: (yPx / h) * 100 };
+    const update = () => {
+      const r = el.getBoundingClientRect();
+      setMapSize({ w: r.width, h: r.height });
     };
 
-    const displayThrow = selectedLineup
-    ? clampPctPoint(selectedLineup.throw, mapSize.w, mapSize.h, PLAYER_SAFE_HALF)
-    : null;
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
+  const clampPctPoint = (p: { x: number; y: number }, w: number, h: number, safeHalfPx: number) => {
+    if (!w || !h) return p;
+
+    const xPx = clamp((p.x / 100) * w, safeHalfPx, w - safeHalfPx);
+    const yPx = clamp((p.y / 100) * h, safeHalfPx, h - safeHalfPx);
+
+    return { x: (xPx / w) * 100, y: (yPx / h) * 100 };
+  };
+
+  const displayThrow = selectedLineup ? clampPctPoint(selectedLineup.throw, mapSize.w, mapSize.h, PLAYER_SAFE_HALF) : null;
+
+  // Tooltip sizing (used to decide top/bottom)
+  const TOOLTIP_H = 420;
+  const TOOLTIP_MARGIN = 12;
+  const neededTooltipSpace = TOOLTIP_H + TOOLTIP_MARGIN;
 
   return (
     <>
@@ -328,13 +299,8 @@ export default function Mirage() {
             {/* Arrow + Player when selected */}
             {selectedLineup && displayThrow && (
               <>
-                <TrajectoryOverlay
-                  id={selectedLineup.lineupId}
-                  from={displayThrow}              // IMPORTANT: même point que le player (clamp)
-                  to={selectedLineup.result}
-                />
+                <TrajectoryOverlay id={selectedLineup.lineupId} from={displayThrow} to={selectedLineup.result} />
 
-                {/* player */}
                 <button
                   type="button"
                   className="absolute -translate-x-1/2 -translate-y-1/2 z-20"
@@ -344,119 +310,105 @@ export default function Mirage() {
                   title="Position de lancer"
                 >
                   <img
-                    src={PLAYER_ICON.src /* ou ICONS.player.src */}
+                    src={PLAYER_ICON.src}
                     alt=""
                     draggable={false}
                     className="w-full h-full object-contain drop-shadow transition-transform hover:scale-110"
-                    style={{ width: 60, height: 60 }}
+                    style={{ width: PLAYER_SIZE, height: PLAYER_SIZE }}
                   />
                 </button>
-                </>
-            )}  
+              </>
+            )}
 
             {/* Markers (filtered) */}
             {visibleLineups.map((l) => {
               const isSelected = l.lineupId === selectedId;
+              const isHovered = hoveredId === l.lineupId;
               const icon = GRENADE_ICONS[l.type as GrenadeType];
 
-              const TOOLTIP_H = 420; // ~ titre + image 360 + padding (ajuste si besoin)
-              const TOOLTIP_MARGIN = 12;
-
-              const [hoveredId, setHoveredId] = useState<string | null>(null);
-              const [tooltipSide, setTooltipSide] = useState<"top" | "bottom">("top");
-              const [brokenPreview, setBrokenPreview] = useState<Record<string, boolean>>({});
-
-              const isHovered = hoveredId === l.lineupId;
-              
               return (
-              <button
-                key={l.lineupId}
-                type="button"
-                className={`absolute -translate-x-1/2 -translate-y-1/2 group z-20 pointer-events-auto ${isHovered ? "z-50" : "z-20"}`}
-                style={{ left: `${l.result.x}%`, top: `${l.result.y}%` }}
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  setSelectedId(l.lineupId);
-                }}
-                onPointerEnter={(e) => {
-                  setHoveredId(l.lineupId);
-
-                  const markerRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                  const mapRect = mapRef.current?.getBoundingClientRect();
-
-                  const needed = TOOLTIP_H + TOOLTIP_MARGIN;
-
-                  if (mapRect) {
-                    const spaceAbove = markerRect.top - mapRect.top;
-                    const spaceBelow = mapRect.bottom - markerRect.bottom;
-
-                    if (spaceAbove < needed && spaceBelow >= needed) setTooltipSide("bottom");
-                    else setTooltipSide("top");
-                  } else {
-                    // fallback
-                    setTooltipSide(markerRect.top < needed ? "bottom" : "top");
-                  }
-                }}
-                onPointerLeave={() => {
-                  setHoveredId((cur) => (cur === l.lineupId ? null : cur));
-                }}
-                title={l.title}
-              >
-                <img
-                  src={icon.src}
-                  alt=""
-                  draggable={false}
-                  style={{ width: icon.size, height: icon.size }}
-                  className={`drop-shadow transition-transform ${
-                    isSelected ? "scale-110" : "group-hover:scale-110"
+                <button
+                  key={l.lineupId}
+                  type="button"
+                  className={`absolute -translate-x-1/2 -translate-y-1/2 group pointer-events-auto ${
+                    isHovered ? "z-50" : "z-20"
                   }`}
-                />
+                  style={{ left: `${l.result.x}%`, top: `${l.result.y}%` }}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    setSelectedId(l.lineupId);
+                  }}
+                  onPointerEnter={(e) => {
+                    setHoveredId(l.lineupId);
 
-                {/* Hover tooltip preview */}
-                <div
-                  className={`
-                    pointer-events-none opacity-0 group-hover:opacity-100 transition
-                    absolute left-1/2 -translate-x-1/2 z-50
-                    ${tooltipSide === "top"
-                      ? "top-[-10px] -translate-y-full"
-                      : "top-[calc(100%+10px)] translate-y-0"}
-                    w-[min(640px,90vw)] rounded-lg overflow-hidden
-                    border border-white/15 bg-black/95 backdrop-blur
-                  `}
+                    const markerRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                    const mapRect = mapRef.current?.getBoundingClientRect();
+
+                    if (mapRect) {
+                      const spaceAbove = markerRect.top - mapRect.top;
+                      const spaceBelow = mapRect.bottom - markerRect.bottom;
+
+                      if (spaceAbove < neededTooltipSpace && spaceBelow >= neededTooltipSpace) setTooltipSide("bottom");
+                      else setTooltipSide("top");
+                    } else {
+                      setTooltipSide(markerRect.top < neededTooltipSpace ? "bottom" : "top");
+                    }
+                  }}
+                  onPointerLeave={() => {
+                    setHoveredId((cur) => (cur === l.lineupId ? null : cur));
+                  }}
+                  title={l.title}
                 >
-                  <div className="px-2 py-1 text-xs text-white/90">{l.title}</div>
+                  <img
+                    src={icon.src}
+                    alt=""
+                    draggable={false}
+                    style={{ width: icon.size, height: icon.size }}
+                    className={`drop-shadow transition-transform ${isSelected ? "scale-110" : "group-hover:scale-110"}`}
+                  />
 
-                  {l.previewImg && !brokenPreview[l.lineupId] ? (
-                    <div className="w-full aspect-video bg-black/30">
-                      <img
-                        src={l.previewImg}
-                        alt=""
-                        className="h-full w-full object-cover"
-                        draggable={false}
-                        onError={() => setBrokenPreview((p) => ({ ...p, [l.lineupId]: true }))}
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-full aspect-video bg-black/30 flex items-center justify-center text-xs text-white/60">
-                      Pas de preview
-                    </div>
-                  )}
+                  {/* Hover tooltip preview */}
+                  <div
+                    className={`
+                      pointer-events-none opacity-0 group-hover:opacity-100 transition
+                      absolute left-1/2 -translate-x-1/2 z-50
+                      ${
+                        tooltipSide === "top"
+                          ? "top-[-10px] -translate-y-full"
+                          : "top-[calc(100%+10px)] translate-y-0"
+                      }
+                      w-[min(640px,90vw)] rounded-lg overflow-hidden
+                      border border-white/15 bg-black/95 backdrop-blur
+                    `}
+                  >
+                    <div className="px-2 py-1 text-xs text-white/90">{l.title}</div>
 
-                  <div className="px-2 py-1 text-[11px] text-white/70">
-                    Clique pour afficher le lancer
+                    {l.previewImg && !brokenPreview[l.lineupId] ? (
+                      <div className="w-full aspect-video bg-black/30">
+                        <img
+                          src={l.previewImg}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          draggable={false}
+                          onError={() => setBrokenPreview((p) => ({ ...p, [l.lineupId]: true }))}
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-full aspect-video bg-black/30 flex items-center justify-center text-xs text-white/60">
+                        Pas de preview
+                      </div>
+                    )}
+
+                    <div className="px-2 py-1 text-[11px] text-white/70">Clique pour afficher le lancer</div>
                   </div>
-                </div>
-              </button>
+                </button>
               );
             })}
           </div>
         </div>
       </div>
 
-      {/* ADMIN DRAWER (Konami)
-          - overlay is pointer-events-none so the map stays clickable
-          - panel is pointer-events-auto so buttons work
-      */}
+      {/* ADMIN DRAWER (Konami) */}
       {showAdmin && (
         <div className="fixed inset-0 z-[9999] pointer-events-none">
           <div className="absolute inset-0 bg-black/60 pointer-events-none" />
@@ -504,9 +456,7 @@ export default function Mirage() {
                 defaultType="smoke"
               />
 
-              <div className="mt-3 text-[11px] text-white/60">
-                Konami: ↑↑↓↓←→←→ • ESC pour fermer
-              </div>
+              <div className="mt-3 text-[11px] text-white/60">Konami: ↑↑↓↓←→←→ • ESC pour fermer</div>
             </div>
           </div>
         </div>
