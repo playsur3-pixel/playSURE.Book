@@ -64,13 +64,6 @@ function roleClass(role: string) {
   return "bg-[#4DA3FF]/20 ring-1 ring-[#4DA3FF]/45 text-white";
 }
 
-function effectiveRole(name: string, roles: RolesMap): string {
-  const u = name.trim().toLowerCase();
-  if (u === "playsure") return "coach";
-  if (u === "kr4toss_") return "director";
-  return roles[u] || "player";
-}
-
 export default function AvailabilityGrid({ username }: { username: string }) {
   const [data, setData] = useState<AvailabilityData>(emptyData());
   const [roles, setRoles] = useState<RolesMap>({});
@@ -193,7 +186,7 @@ export default function AvailabilityGrid({ username }: { username: string }) {
     runningRef.current = false;
   }
 
-  const myRole = effectiveRole(username, roles);
+  const myRole = roles[username.toLowerCase()] || "player";
 
   if (loading) {
     return (
@@ -278,7 +271,7 @@ export default function AvailabilityGrid({ username }: { username: string }) {
                         >
                           <div className="flex flex-wrap gap-1">
                             {names.slice(0, 10).map((n) => {
-                              const role = effectiveRole(n, roles);
+                              const role = roles[n.toLowerCase()] || "player";
                               return (
                                 <span key={n} className={`rounded-lg px-2 py-1 text-[11px] ${roleClass(role)}`}>
                                   {n}

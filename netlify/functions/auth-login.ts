@@ -3,6 +3,7 @@ import { connectLambda, getStore } from "@netlify/blobs";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { json } from "./_utils";
+import whitelist from "./whitelist.json";
 
 const COOKIE_NAME = process.env.AUTH_COOKIE_NAME || "playsure_token";
 const JWT_SECRET = process.env.AUTH_JWT_SECRET || "dev-secret";
@@ -21,11 +22,34 @@ function norm(s: string) {
   return s.trim().toLowerCase();
 }
 
-function specialRole(username: string): string | null {
-  const u = norm(username);
-  if (u === "playsure") return "coach";
-  if (u === "kr4toss_") return "director";
-  return null;
+function readWhitelist(): { allowed: string[]; roles: Record<string, string> } {
+  const usersRaw = (whitelist as any)?.users;
+
+  if (Array.isArray(usersRaw)) {
+    const users = usersRaw
+      .map((u: any) => ({
+        name: String(u?.name ?? "").trim(),
+        role: String(u?.role ?? "player").trim(),
+      }))
+      .filter((u: any) => u.name);
+
+    const allowed = users.map((u: any) => u.name);
+    const roles: Record<string, string> = {};
+    for (const u of users) roles[norm(u.name)] = norm(u.role || "player");
+    return { allowed, roles };
+  }
+
+  // fallback ancien format si besoin
+  const allowed = Array.isArray((whitelist as any)?.allowed)
+    ? (whitelist as any).allowed.map((x: any) => String(x).trim()).filter(Boolean)
+    : [];
+
+  const rolesObj = ((whitelist as any)?.roles ?? {}) as Record<string, any>;
+  const roles: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rolesObj)) roles[norm(k)] = norm(String(v));
+  for (const u of allowed) if (!roles[norm(u)]) roles[norm(u)] = "player";
+
+  return { allowed, roles };
 }
 
 export const handler: Handler = async (event) => {
@@ -39,6 +63,13 @@ export const handler: Handler = async (event) => {
     const password = String(body?.password ?? "");
 
     if (!usernameInput || !password) return json(400, { error: "Missing credentials" });
+
+    // ✅ Whitelist
+    const { allowed, roles } = readWhitelist();
+    const allowedSet = new Set(allowed.map(norm));
+    if (!allowedSet.has(norm(usernameInput))) {
+      return json(403, { error: "User not whitelisted" });
+    }
 
     const store = getStore("playsure-auth");
 
@@ -58,8 +89,8 @@ export const handler: Handler = async (event) => {
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return json(401, { error: "Invalid credentials" });
 
-    // rôle = stocké sur le user (ou override par pseudo spécial)
-    const role = specialRole(user.username) || norm(user.role || "player");
+    // ✅ rôle = whitelist (source de vérité)
+    const role = roles[norm(user.username)] || "player";
 
     const token = jwt.sign({ sub: user.username, role }, JWT_SECRET, { expiresIn: "7d" });
 

@@ -1,9 +1,9 @@
 import type { Handler } from "@netlify/functions";
 import { connectLambda, getStore } from "@netlify/blobs";
 import { json } from "./_utils";
+import whitelist from "./whitelist.json";
 
 const STORE_NAME = process.env.AVAILABILITY_STORE || "playsure-schedule";
-const AUTH_STORE = process.env.AUTH_STORE || "playsure-auth";
 
 const MIN_HOUR = 17;
 const MAX_HOUR = 22;
@@ -18,17 +18,16 @@ type UserFile = {
   available: string[];
 };
 
-type UsersDb = Record<string, { username: string; role?: string; passwordHash: string; createdAt?: string }>;
-
 function norm(s: string) {
-  return String(s || "").trim().toLowerCase();
+  return s.trim().toLowerCase();
 }
 
-function specialRole(username: string): string | null {
-  const u = norm(username);
-  if (u === "playsure") return "coach";
-  if (u === "kr4toss_") return "director";
-  return null;
+function normUserKey(name: string) {
+  return norm(name).replace(/[^a-z0-9_-]+/g, "_");
+}
+
+function userBlobKey(displayName: string) {
+  return `availability/users/${normUserKey(displayName)}.json`;
 }
 
 function isValidSlotKey(slotKey: string): boolean {
@@ -49,34 +48,44 @@ function toStringArray(input: unknown): string[] {
   return input.map((x) => String(x).trim()).filter((s) => s.length > 0);
 }
 
-async function listUserFiles(store: any): Promise<string[]> {
-  // @netlify/blobs: store.list({ prefix })
-  const res = await (store as any).list?.({ prefix: "availability/users/" }).catch(() => null);
-  const blobs = (res?.blobs || res?.items || res || []) as any[];
-  const keys = blobs
-    .map((b: any) => String(b?.key ?? b?.name ?? b ?? ""))
-    .filter((k) => k.startsWith("availability/users/") && k.endsWith(".json"));
-  // Dédup
-  return Array.from(new Set(keys));
-}
+/**
+ * Supporte:
+ * - Nouveau format: { users: [ { name, role } ] }
+ * - Ancien format: { allowed: [...], roles: {...} }
+ */
+function readWhitelist() {
+  const usersRaw = (whitelist as any)?.users;
 
-async function readRoles(): Promise<Record<string, string>> {
-  const out: Record<string, string> = {};
-  const store = getStore(AUTH_STORE);
-  const raw = await store.get("users.json", { type: "json" }).catch(() => null);
-  const users: UsersDb = raw && typeof raw === "object" ? (raw as UsersDb) : {};
+  // ✅ Nouveau format
+  if (Array.isArray(usersRaw)) {
+    const users = usersRaw
+      .map((u: any) => ({
+        name: String(u?.name ?? "").trim(),
+        role: String(u?.role ?? "player").trim(),
+      }))
+      .filter((u: any) => u.name);
 
-  for (const u of Object.values(users)) {
-    const name = String(u?.username || "").trim();
-    if (!name) continue;
-    out[norm(name)] = specialRole(name) || norm(u.role || "player");
+    const allowed = users.map((u: any) => u.name);
+
+    const roles: Record<string, string> = {};
+    for (const u of users) {
+      roles[norm(u.name)] = norm(u.role || "player");
+    }
+
+    return { allowed, roles };
   }
 
-  // Assure les overrides même si pas dans users.json
-  out["playsure"] = "coach";
-  out["kr4toss_"] = "director";
+  // ✅ Fallback ancien format
+  const allowed = Array.isArray((whitelist as any)?.allowed)
+    ? (whitelist as any).allowed.map((x: any) => String(x).trim()).filter(Boolean)
+    : [];
 
-  return out;
+  const rolesObj = ((whitelist as any)?.roles ?? {}) as Record<string, any>;
+  const roles: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rolesObj)) roles[norm(k)] = norm(String(v));
+  for (const u of allowed) if (!roles[norm(u)]) roles[norm(u)] = "player";
+
+  return { allowed, roles };
 }
 
 export const handler: Handler = async (event) => {
@@ -86,18 +95,19 @@ export const handler: Handler = async (event) => {
     if (event.httpMethod !== "GET") return json(405, { error: "Method Not Allowed" });
 
     const store = getStore(STORE_NAME);
-    const keys = await listUserFiles(store);
+    const { allowed, roles } = readWhitelist();
 
     const slots: Record<string, Slot> = {};
     let latest = 0;
 
-    for (const key of keys) {
+    // ✅ C’EST ICI que va la boucle "for (const wlName of allowed)"
+    for (const wlName of allowed) {
+      const key = userBlobKey(wlName);
       const uf = (await store.get(key, { type: "json" }).catch(() => null)) as any;
       if (!uf) continue;
 
       const file = uf as UserFile;
-      const display = String(file.user || "").trim();
-      if (!display) continue;
+      const display = String(file.user || wlName);
 
       const t = Date.parse(String(file.updatedAt || ""));
       if (!Number.isNaN(t)) latest = Math.max(latest, t);
@@ -119,8 +129,7 @@ export const handler: Handler = async (event) => {
       slots,
     };
 
-    const roles = await readRoles();
-
+    // ✅ roles: mapping avec clés en lower-case
     return json(200, { ok: true, data, roles, store: STORE_NAME });
   } catch (e: any) {
     return json(500, { error: e?.message || "Server error" });
